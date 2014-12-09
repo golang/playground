@@ -1,0 +1,4 @@
+This subrepository holds the source for various packages and tools that support
+the Go playground: https://play.golang.org/
+
+To submit changes to this repository, see http://golang.org/doc/contribute.html.
