@@ -1,0 +1,11 @@
+--- rt0_nacl_amd64p32.s	2014-10-28 17:28:25.028188222 -0700
++++ rt0_nacl_amd64p32-faketime.s	2014-10-28 17:28:06.363674896 -0700
+@@ -25,6 +25,6 @@
+ 
+ TEXT main(SB),NOSPLIT,$0
+ 	// Uncomment for fake time like on Go Playground.
+-	//MOVQ	$1257894000000000000, AX
+-	//MOVQ	AX, runtime·faketime(SB)
++	MOVQ	$1257894000000000000, AX
++	MOVQ	AX, runtime·faketime(SB)
+ 	JMP	runtime·rt0_go(SB)
