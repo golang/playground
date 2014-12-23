@@ -6,9 +6,7 @@ the Go playground: https://play.golang.org/
 ## building
 
 ```
-# build the golang:nacl base image
-docker build -t golang:nacl gonacl/
-# build the sandbox server image
+# build the sandbox image
 docker build -t sandbox sandbox/
 ```
 
