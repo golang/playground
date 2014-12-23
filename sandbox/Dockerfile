@@ -10,8 +10,9 @@ ADD enable-fake-time.patch /usr/src/go/
 RUN patch /usr/src/go/src/runtime/rt0_nacl_amd64p32.s /usr/src/go/enable-fake-time.patch
 
 # build go nacl tool chain
+# TODO(proppy): add fake filesystem
 RUN cd /usr/src/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean
-RUN cd /usr/local/bin && curl -s -O https://storage.googleapis.com/gobuilder/sel_ldr_x86_64 && chmod +x sel_ldr_x86_64
+RUN cd /usr/local/bin && curl -s -O https://storage.googleapis.com/gobuilder/sel_ldr_x86_64 && chmod 0755 sel_ldr_x86_64
 
 # add and compile sandbox daemon
 ADD . /go/src/sandbox/

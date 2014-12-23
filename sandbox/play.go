@@ -16,7 +16,6 @@ import (
 type Event struct {
 	Message string
 	Delay   time.Duration // time to wait before printing Message
-	Kind    string
 }
 
 // Decode takes an output string comprised of playback headers, and converts
