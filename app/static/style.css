@@ -1,0 +1,149 @@
+html {
+	height: 100%;
+}
+body {
+	color: black;
+	padding: 0;
+	margin: 0;
+	width: 100%;
+	height: 100%;
+}
+a {
+	color: #009;
+}
+#wrap, 
+#about {
+	padding: 5px;
+	margin: 0;
+
+	position: absolute;
+	top: 50px;
+	bottom: 25%;
+	left: 0;
+	right: 0;
+
+	background: #FFD;
+}
+#about {
+	display: none;
+	z-index: 1;
+	padding: 10px 40px;
+	font-size: 16px;
+	font-family: Georgia, serif;
+	overflow: auto;
+}
+#about p {
+	max-width: 520px;
+}
+#about ul {
+	max-width: 480px;
+}
+#about li {
+	margin-bottom: 1em;
+}
+#code, #output, pre, .lines {
+	font-family: Menlo, Courier New, monospace;
+	font-size: 11pt;
+}
+
+#code {
+	color: black;
+	background: inherit;
+
+	width: 100%;
+	height: 100%;
+	padding: 0; margin: 0;
+	border: none;
+	outline: none;
+	resize: none;
+	wrap: off;
+	float: right;
+}
+#output {
+	position: absolute;
+	top: 75%;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	padding: 8px;
+}
+#output .system, #output .loading {
+	color: #999;
+}
+#output .stderr, #output .error {
+	color: #900;
+}
+#output pre {
+	margin: 0;
+}
+#banner {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	height: 50px;
+}
+#head {
+	float: left;
+	padding: 8px;
+
+	font-size: 30px;
+	font-family: Georgia, serif;
+}
+#controls {
+	float: left; 
+	padding: 10px;
+}
+#aboutControls {
+	float: right; 
+	padding: 10px;
+}
+input[type=button],
+#importsBox {
+	height: 30px;
+	border: 1px solid #ccc;
+	font-size: 20px;
+	font-family: Georgia, serif;
+	background: #eee;
+	color: black;
+	position: static;
+	top: 1px;
+}
+input[type=button]:hover {
+	color: white;
+	background: #666;
+}
+#importsBox {
+	position: relative;
+	display: inline;
+	padding: 3px 0;
+	margin-right: 5px;
+}
+#importsBox input {
+	position: relative;
+	top: -2px;
+	left: 1px;
+}
+#shareURL { 
+	width: 350px;
+	font-size: 16px;
+	border: 1px solid #ccc;
+	background: #eee;
+	color: black;
+}
+.lines {
+	float: left;
+	overflow: hidden;
+	text-align: right;
+}
+.lines div {
+	padding-right: 5px;
+	color: lightgray;
+}
+.lineerror {
+	color: red;
+	background: #FDD;
+}
+.exit {
+	color: lightgray;
+}
