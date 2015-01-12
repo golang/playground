@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 )
 
 type Request struct {
@@ -50,40 +50,35 @@ func compileAndRun(req *Request) (*Response, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	in := path.Join(tmpDir, "main.go")
+	in := filepath.Join(tmpDir, "main.go")
 	if err := ioutil.WriteFile(in, []byte(req.Body), 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
-	exe := path.Join(tmpDir, "a.out")
+	exe := filepath.Join(tmpDir, "a.out")
 	cmd := exec.Command("go", "build", "-o", exe, in)
-	cmd.Env = []string{
-		"GOOS=nacl",
-		"GOARCH=amd64p32",
-	}
+	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32"}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
-			// build error
-			return &Response{
-				Errors: string(out),
-			}, nil
+			// Build error.
+			return &Response{Errors: string(out)}, nil
 		}
 		return nil, fmt.Errorf("error building go source: %v", err)
 	}
 	// TODO(proppy): restrict run time and memory use.
 	cmd = exec.Command("sel_ldr_x86_64", "-l", "/dev/null", "-S", "-e", exe)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
+	rec := new(Recorder)
+	cmd.Stdout = rec.Stdout()
+	cmd.Stderr = rec.Stderr()
+	if err := cmd.Run(); err != nil {
 		if _, ok := err.(*exec.ExitError); !ok {
 			return nil, fmt.Errorf("error running sandbox: %v", err)
 		}
 	}
-	events, err := Decode(out)
+	events, err := rec.Events()
 	if err != nil {
 		return nil, fmt.Errorf("error decoding events: %v", err)
 	}
-	return &Response{
-		Events: events,
-	}, nil
+	return &Response{Events: events}, nil
 }
 
 func main() {

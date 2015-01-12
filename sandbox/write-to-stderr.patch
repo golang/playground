@@ -1,0 +1,23 @@
+This has been committed to the master branch, but is not present in
+1.4 and may not make it to 1.4.x. This patch will fail to apply
+if and when it does, so we'll know to simply delete it when the
+latest stable Go includes the patch.
+
+--- sys_nacl_amd64p32.s	2014-12-11 01:18:12.000000000 +0000
++++ sys_nacl_amd64p32.s.new	2015-01-12 14:58:08.376023852 +0000
+@@ -93,13 +93,13 @@
+ 	MOVL n+8(FP), DX
+ 	BSWAPL DX
+ 	MOVL DX, 12(SP)
+-	MOVL $1, DI // standard output
++	MOVL fd+0(FP), DI
+ 	MOVL SP, SI
+ 	MOVL $16, DX
+ 	NACL_SYSCALL(SYS_write)
+ 
+ 	// Write actual data.
+-	MOVL $1, DI // standard output
++	MOVL fd+0(FP), DI
+ 	MOVL p+4(FP), SI
+ 	MOVL n+8(FP), DX
+ 	NACL_SYSCALL(SYS_write)

@@ -8,6 +8,8 @@ FROM golang:1.4
 RUN apt-get update && apt-get install -yq --no-install-recommends patch
 ADD enable-fake-time.patch /usr/src/go/
 RUN patch /usr/src/go/src/runtime/rt0_nacl_amd64p32.s /usr/src/go/enable-fake-time.patch
+ADD write-to-stderr.patch /usr/src/go/
+RUN patch /usr/src/go/src/runtime/sys_nacl_amd64p32.s /usr/src/go/write-to-stderr.patch
 
 # build go nacl tool chain
 # TODO(proppy): add fake filesystem
