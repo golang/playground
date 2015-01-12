@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// TODO(adg): add logging
+
 // Command sandbox is an HTTP server that takes requests containing go
 // source files, and builds and executes them in a NaCl sanbox.
 package main
@@ -26,13 +28,13 @@ type Response struct {
 	Events []Event
 }
 
-func handleCompile(w http.ResponseWriter, r *http.Request) {
-	var codeRequest Request
-	if err := json.NewDecoder(r.Body).Decode(&codeRequest); err != nil {
+func compileHandler(w http.ResponseWriter, r *http.Request) {
+	var req Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf("request error: %v", err), http.StatusBadRequest)
 		return
 	}
-	resp, err := compileAndRun(&codeRequest)
+	resp, err := compileAndRun(&req)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("sandbox error: %v", err), http.StatusInternalServerError)
 		return
@@ -81,10 +83,27 @@ func compileAndRun(req *Request) (*Response, error) {
 	return &Response{Events: events}, nil
 }
 
+const healthProg = `package main;import "fmt";func main(){fmt.Print("ok")}`
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	resp, err := compileAndRun(&Request{Body: healthProg})
+	if err == nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if resp.Errors != "" {
+		http.Error(w, fmt.Sprintf("compile error: %v", resp.Errors), http.StatusInternalServerError)
+		return
+	}
+	if len(resp.Events) != 1 || resp.Events[0].Message != "ok" {
+		http.Error(w, fmt.Sprintf("bad health check output: %v", resp.Events), http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprint(w, "ok")
+}
+
 func main() {
-	http.HandleFunc("/compile", handleCompile)
-	http.HandleFunc("/_ah/health", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "ok")
-	})
+	http.HandleFunc("/compile", compileHandler)
+	http.HandleFunc("/_ah/health", healthHandler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

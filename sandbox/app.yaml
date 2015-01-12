@@ -7,6 +7,11 @@ vm: true
 manual_scaling:
   instances: 15
 
+health_check:
+  check_interval_sec: 20
+  restart_threshold: 10
+
 handlers:
 - url: /.*
   script: _go_app
+
