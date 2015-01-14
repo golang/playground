@@ -5,7 +5,7 @@ api_version: go1
 vm: true
 
 manual_scaling:
-  instances: 15
+  instances: 5
 
 health_check:
   check_interval_sec: 20

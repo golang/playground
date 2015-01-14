@@ -83,23 +83,28 @@ func compileAndRun(req *Request) (*Response, error) {
 	return &Response{Events: events}, nil
 }
 
-const healthProg = `package main;import "fmt";func main(){fmt.Print("ok")}`
-
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	resp, err := compileAndRun(&Request{Body: healthProg})
-	if err == nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if resp.Errors != "" {
-		http.Error(w, fmt.Sprintf("compile error: %v", resp.Errors), http.StatusInternalServerError)
-		return
-	}
-	if len(resp.Events) != 1 || resp.Events[0].Message != "ok" {
-		http.Error(w, fmt.Sprintf("bad health check output: %v", resp.Events), http.StatusInternalServerError)
+	if err := healthCheck(); err != nil {
+		http.Error(w, "Health check failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	fmt.Fprint(w, "ok")
+}
+
+const healthProg = `package main;import "fmt";func main(){fmt.Print("ok")}`
+
+func healthCheck() error {
+	resp, err := compileAndRun(&Request{Body: healthProg})
+	if err != nil {
+		return err
+	}
+	if resp.Errors != "" {
+		return fmt.Errorf("compile error: %v", resp.Errors)
+	}
+	if len(resp.Events) != 1 || resp.Events[0].Message != "ok" {
+		return fmt.Errorf("unexpected output: %v", resp.Events)
+	}
+	return nil
 }
 
 func main() {
