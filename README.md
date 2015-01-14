@@ -22,3 +22,31 @@ cat /path/to/code.go | go run ./sandbox/client.go | curl --data @- $DOCKER_HOST_
 ```
 
 To submit changes to this repository, see http://golang.org/doc/contribute.html.
+
+# deployment
+
+## managed-vms
+
+```
+boot2docker shellinit
+gcloud preview app setup-managed-vms
+gcloud preview app run app/ sandbox/
+gcloud preview app deploy app/ sandbox/
+```
+
+## kubernetes
+
+```
+# sandbox
+docker push golang/playground-sandbox
+gcloud preview container replicationcontrollers create --config sandbox/kubernetes/controller.yaml
+gcloud preview container services create --config sandbox/kubernetes/service.yaml
+```
+
+## container-vm
+
+```
+# sandbox
+docker push golang/playground-sandbox
+gcloud compute instances create playground-sandbox-vm --image container-vm --metadata-from-file google-container-manifest=sandbox/container-vm.yaml
+```
