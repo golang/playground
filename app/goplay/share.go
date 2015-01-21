@@ -18,7 +18,7 @@ import (
 
 const salt = "[replace this with something unique]"
 
-const maxSnippetSize = 1 << 16 // 64KB
+const maxSnippetSize = 64 * 1024
 
 type Snippet struct {
 	Body []byte
