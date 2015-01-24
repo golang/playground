@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -32,6 +33,16 @@ type Request struct {
 type Response struct {
 	Errors string
 	Events []Event
+}
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "test" {
+		test()
+		return
+	}
+	http.HandleFunc("/compile", compileHandler)
+	http.HandleFunc("/_ah/health", healthHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 func compileHandler(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +75,7 @@ func compileAndRun(req *Request) (*Response, error) {
 	}
 	exe := filepath.Join(tmpDir, "a.out")
 	cmd := exec.Command("go", "build", "-o", exe, in)
-	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32"}
+	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOPATH=" + os.Getenv("GOPATH")}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// Build error.
@@ -120,8 +131,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "ok")
 }
 
-const healthProg = `package main;import "fmt";func main(){fmt.Print("ok")}`
-
 func healthCheck() error {
 	resp, err := compileAndRun(&Request{Body: healthProg})
 	if err != nil {
@@ -136,8 +145,119 @@ func healthCheck() error {
 	return nil
 }
 
+const healthProg = `
+package main
+
+import "fmt"
+
+func main() { fmt.Print("ok") }
+`
+
+func test() {
+	if err := healthCheck(); err != nil {
+		log.Fatal(err)
+	}
+	for _, t := range tests {
+		resp, err := compileAndRun(&Request{Body: t.prog})
+		if err != nil {
+			log.Fatal(err)
+		}
+		if resp.Errors != "" {
+			log.Fatal(resp.Errors)
+		}
+		if len(resp.Events) != 1 || !strings.Contains(resp.Events[0].Message, t.want) {
+			log.Fatalf("unexpected output: %v, want %q", resp.Events, t.want)
+		}
+	}
+	fmt.Println("OK")
+}
+
+var tests = []struct {
+	prog, want string
+}{
+	{`
+package main
+
+import "time"
+
 func main() {
-	http.HandleFunc("/compile", compileHandler)
-	http.HandleFunc("/_ah/health", healthHandler)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		panic(err.Error())
+	}
+	println(loc.String())
+}
+	`, "America/New_York"},
+
+	{`
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	fmt.Println(time.Now())
+}
+	`, "2009-11-10 23:00:00 +0000 UTC"},
+
+	{`
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	t1 := time.Tick(time.Second * 3)
+	t2 := time.Tick(time.Second * 7)
+	t3 := time.Tick(time.Second * 11)
+	end := time.After(time.Second * 19)
+	want := "112131211"
+	var got []byte
+	for {
+		var c byte
+		select {
+		case <-t1:
+			c = '1'
+		case <-t2:
+			c = '2'
+		case <-t3:
+			c = '3'
+		case <-end:
+			if g := string(got); g != want {
+				fmt.Printf("got %q, want %q\n", g, want)
+			} else {
+				fmt.Println("timers fired as expected")
+			}
+			return
+		}
+		got = append(got, c)
+	}
+}
+	`, "timers fired as expected"},
+
+	{`
+package main
+
+import (
+	"code.google.com/p/go-tour/pic"
+	"code.google.com/p/go-tour/reader"
+	"code.google.com/p/go-tour/tree"
+	"code.google.com/p/go-tour/wc"
+)
+
+var (
+	_ = pic.Show
+	_ = reader.Validate
+	_ = tree.New
+	_ = wc.Test
+)
+
+func main() {
+	println("ok")
+}
+	`, "ok"},
 }

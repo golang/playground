@@ -1,0 +1,11 @@
+etc	src=/etc
+	resolv.conf	src=misc/nacl/testdata/empty
+	group	src=misc/nacl/testdata/group
+	passwd	src=misc/nacl/testdata/empty
+	hosts	src=misc/nacl/testdata/hosts
+usr	src=/usr
+	src
+		go
+			lib
+				time
+					zoneinfo.zip
