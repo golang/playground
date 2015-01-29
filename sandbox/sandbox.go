@@ -78,8 +78,17 @@ func compileAndRun(req *Request) (*Response, error) {
 	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOPATH=" + os.Getenv("GOPATH")}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
-			// Build error.
-			return &Response{Errors: string(out)}, nil
+			// Return compile errors to the user.
+
+			// Rewrite compiler errors to refer to 'prog.go'
+			// instead of '/tmp/sandbox1234/main.go'.
+			errs := strings.Replace(string(out), in, "prog.go", -1)
+
+			// "go build", invoked with a file name, puts this odd
+			// message before any compile errors; strip it.
+			errs = strings.Replace(errs, "# command-line-arguments\n", "", 1)
+
+			return &Response{Errors: errs}, nil
 		}
 		return nil, fmt.Errorf("error building go source: %v", err)
 	}
