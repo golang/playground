@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-FROM golang:1.4.1
+FROM golang:1.4.2
 
 # enable faketime
 RUN apt-get update && apt-get install -yq --no-install-recommends patch
@@ -21,10 +21,20 @@ RUN cd /usr/local/bin && curl -s -O https://storage.googleapis.com/gobuilder/sel
 
 # add and compile tour packages
 RUN GOOS=nacl GOARCH=amd64p32 go get \
-	code.google.com/p/go-tour/pic \
-	code.google.com/p/go-tour/reader \
-	code.google.com/p/go-tour/tree \
-	code.google.com/p/go-tour/wc
+	golang.org/x/tour/pic \
+	golang.org/x/tour/reader \
+	golang.org/x/tour/tree \
+	golang.org/x/tour/wc
+
+# add tour packages under their old import paths (so old snippets still work)
+RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
+	cp -R $GOPATH/src/golang.org/x/tour/* $GOPATH/src/code.google.com/p/go-tour/ && \
+	sed -i 's_// import_// public import_' $(find $GOPATH/src/code.google.com/p/go-tour/ -name *.go) && \
+	go install \
+		code.google.com/p/go-tour/pic \
+		code.google.com/p/go-tour/reader \
+		code.google.com/p/go-tour/tree \
+		code.google.com/p/go-tour/wc
 
 # add and compile sandbox daemon
 ADD . /go/src/sandbox/
