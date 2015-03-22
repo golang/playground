@@ -14,6 +14,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/parser"
+	"go/token"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -73,6 +75,14 @@ func compileAndRun(req *Request) (*Response, error) {
 	if err := ioutil.WriteFile(in, []byte(req.Body), 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
+
+	fset := token.NewFileSet()
+
+	f, err := parser.ParseFile(fset, in, nil, parser.PackageClauseOnly)
+	if err == nil && f.Name.Name != "main" {
+		return &Response{Errors: "package name must be main"}, nil
+	}
+
 	exe := filepath.Join(tmpDir, "a.out")
 	cmd := exec.Command("go", "build", "-o", exe, in)
 	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOPATH=" + os.Getenv("GOPATH")}
@@ -171,6 +181,12 @@ func test() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		if t.errors != "" {
+			if resp.Errors != t.errors {
+				log.Fatalf("resp.Errors = %q, want %q", resp.Errors, t.errors)
+			}
+			continue
+		}
 		if resp.Errors != "" {
 			log.Fatal(resp.Errors)
 		}
@@ -182,9 +198,9 @@ func test() {
 }
 
 var tests = []struct {
-	prog, want string
+	prog, want, errors string
 }{
-	{`
+	{prog: `
 package main
 
 import "time"
@@ -196,9 +212,9 @@ func main() {
 	}
 	println(loc.String())
 }
-	`, "America/New_York"},
+`, want: "America/New_York"},
 
-	{`
+	{prog: `
 package main
 
 import (
@@ -209,9 +225,9 @@ import (
 func main() {
 	fmt.Println(time.Now())
 }
-	`, "2009-11-10 23:00:00 +0000 UTC"},
+`, want: "2009-11-10 23:00:00 +0000 UTC"},
 
-	{`
+	{prog: `
 package main
 
 import (
@@ -246,9 +262,9 @@ func main() {
 		got = append(got, c)
 	}
 }
-	`, "timers fired as expected"},
+`, want: "timers fired as expected"},
 
-	{`
+	{prog: `
 package main
 
 import (
@@ -268,5 +284,12 @@ var (
 func main() {
 	println("ok")
 }
-	`, "ok"},
+`, want: "ok"},
+	{prog: `
+package test
+
+func main() {
+    println("test")
+}
+`, want: "", errors: "package name must be main"},
 }
