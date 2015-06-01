@@ -29,7 +29,7 @@ a {
 	z-index: 1;
 	padding: 10px 40px;
 	font-size: 16px;
-	font-family: Georgia, serif;
+	font-family: Helvetica, Arial, sans-serif;
 	overflow: auto;
 }
 #about p {
@@ -82,54 +82,62 @@ a {
 	right: 0;
 	top: 0;
 	height: 50px;
+	background-color: #E0EBF5;
 }
 #head {
 	float: left;
-	padding: 8px;
+	padding: 15px 10px;
 
-	font-size: 30px;
-	font-family: Georgia, serif;
+	font-size: 20px;
+	font-family: Helvetica, Arial, sans-serif;
 }
 #controls {
-	float: left; 
-	padding: 10px;
+	float: left;
+	padding: 10px 15px;
+	min-width: 245px;
+}
+#controls > input {
+	border-radius: 5px;
 }
 #aboutControls {
-	float: right; 
-	padding: 10px;
+	float: right;
+	padding: 10px 15px;
 }
 input[type=button],
 #importsBox {
 	height: 30px;
-	border: 1px solid #ccc;
-	font-size: 20px;
-	font-family: Georgia, serif;
-	background: #eee;
-	color: black;
+	border: 1px solid #375EAB;
+	font-size: 16px;
+	font-family: Helvetica, Arial, sans-serif;
+	background: #375EAB;
+	color: white;
 	position: static;
 	top: 1px;
-}
-input[type=button]:hover {
-	color: white;
-	background: #666;
+	border-radius: 5px;
 }
 #importsBox {
 	position: relative;
 	display: inline;
-	padding: 3px 0;
+	padding: 5px 0;
 	margin-right: 5px;
 }
 #importsBox input {
 	position: relative;
 	top: -2px;
 	left: 1px;
+	height: 10px;
+	width: 10px;
 }
-#shareURL { 
-	width: 350px;
+#shareURL {
+	width: 280px;
 	font-size: 16px;
 	border: 1px solid #ccc;
 	background: #eee;
 	color: black;
+	height: 23px;
+}
+#embedLabel {
+	font-family: Helvetica, Arial, sans-serif;
 }
 .lines {
 	float: left;

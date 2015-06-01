@@ -1,11 +1,12 @@
 <!doctype html>
 <html>
 	<head>
-		<title>Go Playground</title>
+		<title>The Go Playground</title>
 		<link rel="stylesheet" href="/static/style.css">
 		<script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
 		<script src="/static/jquery-linedtextarea.js"></script>
 		<script src="/playground.js"></script>
+		<script src="/static/playground-embed.js"></script>
 		<script>
 		$(document).ready(function() {
 			playground({
@@ -17,6 +18,13 @@
 				'shareEl':      '#share',
 				'shareURLEl':   '#shareURL',
 				'enableHistory': true
+			});
+			playgroundEmbed({
+				'codeEl':       '#code',
+				'shareEl':      '#share',
+				'embedEl':      '#embed',
+				'embedLabelEl': '#embedLabel',
+				'embedHTMLEl':  '#shareURL'
 			});
 			$('#code').linedtextarea();
 			// Avoid line wrapping.
@@ -61,7 +69,7 @@
 	</head>
 	<body itemscope itemtype="http://schema.org/CreativeWork">
 		<div id="banner">
-			<div id="head" itemprop="name">Go Playground</div>
+			<div id="head" itemprop="name">The Go Playground</div>
 			<div id="controls">
 				<input type="button" value="Run" id="run">
 				<input type="button" value="Format" id="fmt">
@@ -73,6 +81,11 @@
 				</div>
 				<input type="button" value="Share" id="share">
 				<input type="text" id="shareURL">
+
+				<label id="embedLabel">
+					<input type="checkbox" id="embed">
+					embed
+				</label>
 			</div>
 			<div id="aboutControls">
 				<input type="button" value="About" id="aboutButton">
