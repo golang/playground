@@ -49,6 +49,15 @@
 			$('#imports').change(function() {
 				createCookie('playgroundImports', $(this).is(':checked') ? 'true' : '');
 			});
+			// Fire Google Analytics events for Run/Share button clicks.
+			if (window.trackEvent) {
+				$('#run').click(function() {
+					window.trackEvent('playground', 'click', 'run-button');
+				});
+				$('#share').click(function() {
+					window.trackEvent('playground', 'click', 'share-button');
+				});
+			}
 		});
 
 		function createCookie(name, value) {
