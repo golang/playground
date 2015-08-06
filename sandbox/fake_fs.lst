@@ -4,7 +4,7 @@ etc	src=/etc
 	passwd	src=misc/nacl/testdata/empty
 	hosts	src=misc/nacl/testdata/hosts
 usr	src=/usr
-	src
+	local
 		go
 			lib
 				time
