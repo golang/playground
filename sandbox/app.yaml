@@ -1,8 +1,8 @@
 application: golang-org
-version: sandbox
 runtime: custom
 api_version: go1
 vm: true
+module: sandbox
 
 manual_scaling:
   instances: 5

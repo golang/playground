@@ -28,10 +28,12 @@ To submit changes to this repository, see http://golang.org/doc/contribute.html.
 ## managed-vms
 
 ```
-boot2docker shellinit
-gcloud preview app setup-managed-vms
-gcloud preview app run app/ sandbox/
-gcloud preview app deploy app/ sandbox/
+gcloud preview app run app/app.yaml
+gcloud preview app run sandbox/app.yaml
+
+gcloud config set project golang-org
+gcloud preview app deploy app/app.yaml --version play
+gcloud preview app deploy sandbox/app.yaml --set-default
 ```
 
 ## kubernetes
