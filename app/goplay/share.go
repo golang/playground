@@ -39,7 +39,7 @@ func init() {
 }
 
 func share(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if !allowShare(r) || r.Method != "POST" {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -69,4 +69,15 @@ func share(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprint(w, id)
+}
+
+func allowShare(r *http.Request) bool {
+	if appengine.IsDevAppServer() {
+		return true
+	}
+	switch r.Header.Get("X-AppEngine-Country") {
+	case "", "ZZ", "HK", "CN", "RC":
+		return false
+	}
+	return true
 }

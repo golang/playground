@@ -15,13 +15,17 @@
 				'runEl':        '#run',
 				'fmtEl':        '#fmt',
 				'fmtImportEl':  '#imports',
+				{{if $.Share}}
 				'shareEl':      '#share',
 				'shareURLEl':   '#shareURL',
+				{{end}}
 				'enableHistory': true
 			});
 			playgroundEmbed({
 				'codeEl':       '#code',
+				{{if $.Share}}
 				'shareEl':      '#share',
+				{{end}}
 				'embedEl':      '#embed',
 				'embedLabelEl': '#embedLabel',
 				'embedHTMLEl':  '#shareURL'
@@ -88,13 +92,14 @@
 						Imports
 					</label>
 				</div>
+				{{if $.Share}}
 				<input type="button" value="Share" id="share">
 				<input type="text" id="shareURL">
-
 				<label id="embedLabel">
 					<input type="checkbox" id="embed">
 					embed
 				</label>
+				{{end}}
 			</div>
 			<div id="aboutControls">
 				<input type="button" value="About" id="aboutButton">

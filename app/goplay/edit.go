@@ -23,17 +23,22 @@ var editTemplate = template.Must(template.ParseFiles("goplay/edit.html"))
 
 type editData struct {
 	Snippet *Snippet
+	Share   bool
 }
 
 func edit(w http.ResponseWriter, r *http.Request) {
 	// Redirect foo.play.golang.org to play.golang.org.
 	if strings.HasSuffix(r.Host, "."+hostname) {
-		http.Redirect(w, r, "http://"+hostname, http.StatusFound)
+		http.Redirect(w, r, "https://"+hostname, http.StatusFound)
 		return
 	}
 
 	snip := &Snippet{Body: []byte(hello)}
 	if strings.HasPrefix(r.URL.Path, "/p/") {
+		if !allowShare(r) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		c := appengine.NewContext(r)
 		id := r.URL.Path[3:]
 		serveText := false
@@ -56,7 +61,7 @@ func edit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	editTemplate.Execute(w, &editData{snip})
+	editTemplate.Execute(w, &editData{snip, allowShare(r)})
 }
 
 const hello = `package main
