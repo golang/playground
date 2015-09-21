@@ -1,0 +1,7 @@
+This subrepository holds the source for the Go playground. https://play.golang.org/
+
+To submit changes to this repository, see http://golang.org/doc/contribute.html.
+
+To deploy a new sandbox server, use the gcloud tool:
+
+$ gcloud --project golang-org preview app deploy --set-default sandbox/app.yaml
