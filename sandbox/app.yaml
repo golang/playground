@@ -1,11 +1,11 @@
-application: golang-org
+module: sandbox
 runtime: custom
 api_version: go1
 vm: true
-module: sandbox
 
-manual_scaling:
-  instances: 5
+automatic_scaling:
+  min_num_instances: 5
+  max_num_instances: 20
 
 health_check:
   check_interval_sec: 20

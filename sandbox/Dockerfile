@@ -43,5 +43,8 @@ RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
 ADD . /go/src/sandbox/
 RUN go install sandbox
 
+# make sure it works
+RUN /go/bin/sandbox test
+
 EXPOSE 8080
 ENTRYPOINT ["/go/bin/sandbox"]

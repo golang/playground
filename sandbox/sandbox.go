@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-const maxRunTime = 500 * time.Millisecond
+const maxRunTime = 2 * time.Second
 
 type Request struct {
 	Body string
