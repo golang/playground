@@ -66,7 +66,9 @@ func edit(w http.ResponseWriter, r *http.Request) {
 
 const hello = `package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func main() {
 	fmt.Println("Hello, playground")
