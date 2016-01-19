@@ -24,7 +24,7 @@ a {
 	background: #FFD;
 }
 #code, pre, .lines {
-	font-family: Menlo, Courier New, monospace;
+	font-family: Menlo, monospace;
 	font-size: 11pt;
 }
 #code {
