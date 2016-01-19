@@ -29,7 +29,7 @@ a {
 	z-index: 1;
 	padding: 10px 40px;
 	font-size: 16px;
-	font-family: Helvetica, Arial, sans-serif;
+	font-family: sans-serif;
 	overflow: auto;
 }
 #about p {
@@ -42,7 +42,9 @@ a {
 	margin-bottom: 1em;
 }
 #code, #output, pre, .lines {
-	font-family: Menlo, Courier New, monospace;
+	/* The default monospace font on OS X is ugly, so specify Menlo
+	 * instead. On other systems the default monospace font will be used. */
+	font-family: Menlo, monospace;
 	font-size: 11pt;
 }
 
@@ -89,7 +91,7 @@ a {
 	padding: 15px 10px;
 
 	font-size: 20px;
-	font-family: Helvetica, Arial, sans-serif;
+	font-family: sans-serif;
 }
 #controls {
 	float: left;
@@ -108,7 +110,7 @@ input[type=button],
 	height: 30px;
 	border: 1px solid #375EAB;
 	font-size: 16px;
-	font-family: Helvetica, Arial, sans-serif;
+	font-family: sans-serif;
 	background: #375EAB;
 	color: white;
 	position: static;
@@ -137,7 +139,7 @@ input[type=button],
 	height: 23px;
 }
 #embedLabel {
-	font-family: Helvetica, Arial, sans-serif;
+	font-family: sans-serif;
 }
 .lines {
 	float: left;
