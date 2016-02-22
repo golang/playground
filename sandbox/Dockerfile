@@ -4,8 +4,9 @@
 
 FROM golang:1.6
 
+RUN apt-get update && apt-get install -yq --no-install-recommends patch bzip2
+
 # enable faketime
-RUN apt-get update && apt-get install -yq --no-install-recommends patch
 ADD enable-fake-time.patch /usr/local/go/
 RUN patch /usr/local/go/src/runtime/rt0_nacl_amd64p32.s /usr/local/go/enable-fake-time.patch
 
@@ -20,7 +21,7 @@ RUN curl https://storage.googleapis.com/golang/go1.4.2.linux-amd64.tar.gz | tar 
 
 # Build the Go nacl tool chain.
 RUN cd /usr/local/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean
-RUN cd /usr/local/bin && curl -s -O https://storage.googleapis.com/gobuilder/sel_ldr_x86_64 && chmod 0755 sel_ldr_x86_64
+RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/44.0.2403.157/naclsdk_linux.tar.bz2 | tar -xj -C /usr/local/bin --strip-components=2 pepper_44/tools/sel_ldr_x86_64
 
 # add and compile tour packages
 RUN GOOS=nacl GOARCH=amd64p32 go get \

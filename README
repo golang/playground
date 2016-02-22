@@ -4,4 +4,11 @@ To submit changes to this repository, see http://golang.org/doc/contribute.html.
 
 To deploy a new sandbox server, use the gcloud tool:
 
-$ gcloud --project golang-org preview app deploy --set-default sandbox/app.yaml
+$ gcloud --project golang-org preview app deploy --no-promote sandbox/app.yaml
+
+Use the Cloud Console's to set the new version as the default:
+	https://cloud.google.com/console/appengine/versions?project=golang-org&moduleId=sandbox
+Then test that play.golang.org and tour.golang.org are working before deleting
+the old version.
+
+
