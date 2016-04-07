@@ -12,7 +12,7 @@
 			playground({
 				'codeEl':       '#code',
 				'outputEl':     '#output',
-				'runEl':        '#run',
+				'runEl':        '#run, #embedRun',
 				'fmtEl':        '#fmt',
 				'fmtImportEl':  '#imports',
 				{{if $.Share}}
@@ -81,6 +81,7 @@
 		</script>
 	</head>
 	<body itemscope itemtype="http://schema.org/CreativeWork">
+		<input type="button" value="Run" id="embedRun">
 		<div id="banner">
 			<div id="head" itemprop="name">The Go Playground</div>
 			<div id="controls">

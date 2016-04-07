@@ -4,26 +4,24 @@
 
 // opts is an object with these keys
 //  codeEl - code editor element
-//  shareEl - embed button element
 //  embedEl - embed checkbox element
 //  embedLabelEl - embed label element, containing embedEl
 //  embedHTMLEl - embed HTML text input element
 function playgroundEmbed(opts) {
-  if (opts.codeEl === null || opts.shareEl === null || opts.embedEl === null || opts.embedLabelEl === null || opts.embedHTMLEl === null) {
+  if (opts.codeEl === null || opts.embedEl === null || opts.embedLabelEl === null || opts.embedHTMLEl === null) {
     return;
   }
 
-  code = $(opts.codeEl)
-  embed = $(opts.embedEl);
-  embedLabel = $(opts.embedLabelEl);
-  share = $(opts.shareEl);
+  var code = $(opts.codeEl);
+  var embed = $(opts.embedEl);
+  var embedLabel = $(opts.embedLabelEl);
 
   function inIFrame(){
     return window.self !== window.top;
   }
   embedLabel.hide();
   if (inIFrame()) {
-    share.hide();
+    $("body").addClass("embedded");
     return;
   }
 

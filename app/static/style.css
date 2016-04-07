@@ -157,3 +157,20 @@ input[type=button],
 .exit {
 	color: lightgray;
 }
+
+.embedded #banner {
+	display: none;
+}
+.embedded #wrap {
+	top: 0;
+}
+#embedRun {
+	display: none;
+}
+.embedded #embedRun {
+	display: block;
+	position: absolute;
+	z-index: 1;
+	top: 10px;
+	right: 10px;
+}
