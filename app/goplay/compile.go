@@ -16,7 +16,7 @@ import (
 const runUrl = "http://golang.org/compile?output=json"
 
 func init() {
-	http.HandleFunc("/compile", httpsOnlyHandler{compile})
+	http.HandleFunc("/compile", compile)
 }
 
 func compile(w http.ResponseWriter, r *http.Request) {

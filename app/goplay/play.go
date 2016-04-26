@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	http.HandleFunc("/playground.js", httpsOnlyHandler{play})
+	http.HandleFunc("/playground.js", play)
 }
 
 func play(w http.ResponseWriter, r *http.Request) {

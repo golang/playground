@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	http.HandleFunc("/fmt", httpsOnlyHandler{fmtHandler})
+	http.HandleFunc("/fmt", fmtHandler)
 }
 
 type fmtResponse struct {
