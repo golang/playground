@@ -37,11 +37,6 @@ function playgroundEmbed(opts) {
     code[0].addEventListener('input', inputChanged);
   }
 
-  share.click(function(){
-    embedLabel.show();
-    embed.prop('checked', false);
-  });
-
   var embedHTML = $(opts.embedHTMLEl).hide();
   var embedding = false;
   embed.change(function() {
