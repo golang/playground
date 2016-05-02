@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	http.HandleFunc("/playground.js", play)
+	http.Handle("/playground.js", hstsHandler(play))
 }
 
 func play(w http.ResponseWriter, r *http.Request) {

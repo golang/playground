@@ -16,7 +16,7 @@ import (
 const hostname = "play.golang.org"
 
 func init() {
-	http.HandleFunc("/", edit)
+	http.Handle("/", hstsHandler(edit))
 }
 
 var editTemplate = template.Must(template.ParseFiles("goplay/edit.html"))

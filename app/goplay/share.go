@@ -35,7 +35,7 @@ func (s *Snippet) Id() string {
 }
 
 func init() {
-	http.HandleFunc("/share", share)
+	http.Handle("/share", hstsHandler(share))
 }
 
 func share(w http.ResponseWriter, r *http.Request) {
