@@ -28,7 +28,8 @@ RUN GOOS=nacl GOARCH=amd64p32 go get \
 	golang.org/x/tour/pic \
 	golang.org/x/tour/reader \
 	golang.org/x/tour/tree \
-	golang.org/x/tour/wc
+	golang.org/x/tour/wc \
+	golang.org/x/talks/2016/applicative/google
 
 # add tour packages under their old import paths (so old snippets still work)
 RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
