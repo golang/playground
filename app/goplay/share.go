@@ -39,8 +39,14 @@ func init() {
 }
 
 func share(w http.ResponseWriter, r *http.Request) {
-	if !allowShare(r) || r.Method != "POST" {
-		http.Error(w, "Forbidden", http.StatusForbidden)
+	if r.Method != "POST" {
+		status := http.StatusMethodNotAllowed
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	if !allowShare(r) {
+		status := http.StatusUnavailableForLegalReasons
+		http.Error(w, http.StatusText(status), status)
 		return
 	}
 	c := appengine.NewContext(r)
