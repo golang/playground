@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-FROM golang:1.6
+FROM golang:1.7
 
 RUN apt-get update && apt-get install -yq --no-install-recommends patch bzip2
 
