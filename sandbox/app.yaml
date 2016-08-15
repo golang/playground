@@ -1,6 +1,5 @@
-module: sandbox
+service: sandbox
 runtime: custom
-api_version: go1
 vm: true
 
 automatic_scaling:

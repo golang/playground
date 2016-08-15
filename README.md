@@ -3,14 +3,16 @@
 This subrepository holds the source for various packages and tools that support
 the Go playground: https://play.golang.org/
 
-## building
+To submit changes to this repository, see http://golang.org/doc/contribute.html.
+
+## Building
 
 ```
 # build the sandbox image
 docker build -t sandbox sandbox/
 ```
 
-## running
+## Running
 
 ```
 # run the sandbox
@@ -23,32 +25,15 @@ cat /path/to/code.go | go run ./sandbox/client.go | curl --data @- $DOCKER_HOST_
 
 To submit changes to this repository, see http://golang.org/doc/contribute.html.
 
-# deployment
+# Deployment
 
-## managed-vms
-
-```
-gcloud preview app run app/app.yaml
-gcloud preview app run sandbox/app.yaml
-
-gcloud config set project golang-org
-gcloud preview app deploy app/app.yaml --version play
-gcloud preview app deploy sandbox/app.yaml --set-default
-```
-
-## kubernetes
+(Googlers only) To deploy the front-end, use `play/deploy.sh`.
 
 ```
-# sandbox
-docker push golang/playground-sandbox
-gcloud preview container replicationcontrollers create --config sandbox/kubernetes/controller.yaml
-gcloud preview container services create --config sandbox/kubernetes/service.yaml
+gcloud --project golang-org app deploy sandbox/app.yaml --no-promote --version=17rc6
 ```
 
-## container-vm
-
-```
-# sandbox
-docker push golang/playground-sandbox
-gcloud compute instances create playground-sandbox-vm --image container-vm --metadata-from-file google-container-manifest=sandbox/container-vm.yaml
-```
+Use the Cloud Console's to set the new version as the default:
+	https://cloud.google.com/console/appengine/versions?project=golang-org&moduleId=sandbox
+Then test that play.golang.org and tour.golang.org are working before deleting
+the old version.
