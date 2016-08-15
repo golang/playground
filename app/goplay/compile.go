@@ -20,6 +20,11 @@ func init() {
 }
 
 func compile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		code := http.StatusMethodNotAllowed
+		http.Error(w, http.StatusText(code), code)
+		return
+	}
 	if err := passThru(w, r); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, "Compile server error.")
