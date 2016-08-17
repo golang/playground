@@ -292,4 +292,37 @@ func main() {
     println("test")
 }
 `, want: "", errors: "package name must be main"},
+	{prog: `
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+func main() {
+	filepath.Walk("/", func(path string, info os.FileInfo, err error) error {
+		fmt.Println(path)
+		return nil
+	})
+}
+`, want: `/
+/dev
+/dev/null
+/dev/random
+/dev/urandom
+/dev/zero
+/etc
+/etc/group
+/etc/hosts
+/etc/passwd
+/etc/resolv.conf
+/tmp
+/usr
+/usr/local
+/usr/local/go
+/usr/local/go/lib
+/usr/local/go/lib/time
+/usr/local/go/lib/time/zoneinfo.zip`},
 }
