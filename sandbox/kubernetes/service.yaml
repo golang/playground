@@ -1,7 +1,0 @@
-id: sandbox-service
-kind: Service
-apiVersion: v1beta1
-port: 8080
-containerPort: sandbox-server
-selector:
-  name: sandbox
