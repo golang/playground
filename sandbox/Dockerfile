@@ -37,7 +37,10 @@ RUN set -x && buildDeps='curl ca-certificates gcc patch libc6-dev'; \
 
 # Re-build the Go toolchain.
     cd /usr/local/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean && \
-    rm -rf $GOROOT_BOOTSTRAP
+
+# Clean up.
+    rm -rf $GOROOT_BOOTSTRAP && \
+    apt-get purge -y --auto-remove $buildDeps
 
 # Add and compile tour packages
 RUN set -x && buildDeps='git'; \
@@ -51,7 +54,6 @@ RUN set -x && buildDeps='git'; \
     rm -rf $GOPATH/src/golang.org/x/tour/.git && \
     rm -rf $GOPATH/src/golang.org/x/talks/.git && \
     apt-get purge -y --auto-remove $buildDeps
-
 
 # Add tour packages under their old import paths (so old snippets still work)
 RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
