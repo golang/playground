@@ -7,7 +7,7 @@ FROM debian:jessie
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV GO_VERSION 1.7
+ENV GO_VERSION 1.7.4
 
 # Fake time
 COPY enable-fake-time.patch /usr/local/sandbox/
@@ -43,7 +43,7 @@ RUN set -x && buildDeps='curl ca-certificates gcc patch libc6-dev'; \
     apt-get purge -y --auto-remove $buildDeps
 
 # Add and compile tour packages
-RUN set -x && buildDeps='git'; \
+RUN set -x && buildDeps='git ca-certificates'; \
     apt-get update && apt-get install -y $buildDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* && \
     GOOS=nacl GOARCH=amd64p32 go get \
     golang.org/x/tour/pic \
