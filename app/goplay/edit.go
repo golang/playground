@@ -36,7 +36,8 @@ func edit(w http.ResponseWriter, r *http.Request) {
 	snip := &Snippet{Body: []byte(hello)}
 	if strings.HasPrefix(r.URL.Path, "/p/") {
 		if !allowShare(r) {
-			http.Error(w, "Forbidden", http.StatusForbidden)
+			msg := `<h1>Unavailable For Legal Reasons</h1><p>If you believe this is in error, please <a href="https://golang.org/issue">file an issue</a>.</p>`
+			http.Error(w, msg, http.StatusUnavailableForLegalReasons)
 			return
 		}
 		c := appengine.NewContext(r)
