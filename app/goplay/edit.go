@@ -5,6 +5,7 @@
 package goplay
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
@@ -57,6 +58,11 @@ func edit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if serveText {
+			if r.FormValue("download") == "true" {
+				w.Header().Set(
+					"Content-Disposition", fmt.Sprintf(`attachment; filename="%s.go"`, id),
+				)
+			}
 			w.Header().Set("Content-type", "text/plain")
 			w.Write(snip.Body)
 			return
