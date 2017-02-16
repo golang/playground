@@ -7,7 +7,7 @@ FROM debian:jessie
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV GO_VERSION 1.7.4
+ENV GO_VERSION 1.8
 
 # Fake time
 COPY enable-fake-time.patch /usr/local/sandbox/
