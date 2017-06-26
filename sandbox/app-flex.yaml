@@ -2,6 +2,10 @@ service: sandbox-flex
 runtime: custom
 env: flex
 
+automatic_scaling:
+  min_num_instances: 5
+  max_num_instances: 20
+
 health_check:
   check_interval_sec: 20
   restart_threshold: 10
