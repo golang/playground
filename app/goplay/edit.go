@@ -37,8 +37,8 @@ func edit(w http.ResponseWriter, r *http.Request) {
 	snip := &Snippet{Body: []byte(hello)}
 	if strings.HasPrefix(r.URL.Path, "/p/") {
 		if !allowShare(r) {
-			msg := `<h1>Unavailable For Legal Reasons</h1><p>If you believe this is in error, please <a href="https://golang.org/issue">file an issue</a>.</p>`
-			http.Error(w, msg, http.StatusUnavailableForLegalReasons)
+			w.WriteHeader(http.StatusUnavailableForLegalReasons)
+			w.Write([]byte(`<h1>Unavailable For Legal Reasons</h1><p>Viewing and/or sharing code snippets is not available in your country for legal reasons. This message might also appear if your country is misdetected. If you believe this is an error, please <a href="https://golang.org/issue">file an issue</a>.</p>`))
 			return
 		}
 		c := appengine.NewContext(r)
