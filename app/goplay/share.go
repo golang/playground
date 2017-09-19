@@ -12,8 +12,9 @@ import (
 	"io"
 	"net/http"
 
-	"appengine"
-	"appengine/datastore"
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/datastore"
+	"google.golang.org/appengine/log"
 )
 
 const salt = "[replace this with something unique]"
@@ -60,7 +61,7 @@ func share(w http.ResponseWriter, r *http.Request) {
 	_, err := io.Copy(&body, io.LimitReader(r.Body, maxSnippetSize+1))
 	r.Body.Close()
 	if err != nil {
-		c.Errorf("reading Body: %v", err)
+		log.Errorf(c, "reading Body: %v", err)
 		http.Error(w, "Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -74,7 +75,7 @@ func share(w http.ResponseWriter, r *http.Request) {
 	key := datastore.NewKey(c, "Snippet", id, 0, nil)
 	_, err = datastore.Put(c, key, snip)
 	if err != nil {
-		c.Errorf("putting Snippet: %v", err)
+		log.Errorf(c, "putting Snippet: %v", err)
 		http.Error(w, "Server Error", http.StatusInternalServerError)
 		return
 	}
