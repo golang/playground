@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package goplay
+package main
 
 import (
 	"fmt"
@@ -17,11 +17,7 @@ import (
 
 const hostname = "play.golang.org"
 
-func init() {
-	http.Handle("/", hstsHandler(edit))
-}
-
-var editTemplate = template.Must(template.ParseFiles("goplay/edit.html"))
+var editTemplate = template.Must(template.ParseFiles("edit.html"))
 
 type editData struct {
 	Snippet *Snippet

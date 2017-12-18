@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package goplay
+package main
 
 import (
 	"encoding/json"
@@ -11,10 +11,6 @@ import (
 
 	"golang.org/x/tools/imports"
 )
-
-func init() {
-	http.Handle("/fmt", hstsHandler(fmtHandler))
-}
 
 type fmtResponse struct {
 	Body  string

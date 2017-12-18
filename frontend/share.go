@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package goplay
+package main
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
@@ -33,10 +34,6 @@ func (s *Snippet) Id() string {
 	b := make([]byte, base64.URLEncoding.EncodedLen(len(sum)))
 	base64.URLEncoding.Encode(b, sum)
 	return string(b)[:10]
-}
-
-func init() {
-	http.Handle("/share", hstsHandler(share))
 }
 
 func share(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +81,7 @@ func share(w http.ResponseWriter, r *http.Request) {
 }
 
 func allowShare(r *http.Request) bool {
-	if appengine.IsDevAppServer() {
+	if os.Getenv("GAE_INSTANCE") == "" {
 		return true
 	}
 	switch r.Header.Get("X-AppEngine-Country") {

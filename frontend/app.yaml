@@ -1,0 +1,3 @@
+service: play-flex
+runtime: go
+env: flex
