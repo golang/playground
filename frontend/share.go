@@ -13,20 +13,18 @@ import (
 	"net/http"
 	"os"
 
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/datastore"
-	"google.golang.org/appengine/log"
+	"cloud.google.com/go/datastore"
 )
 
 const salt = "[replace this with something unique]"
 
 const maxSnippetSize = 64 * 1024
 
-type Snippet struct {
+type snippet struct {
 	Body []byte
 }
 
-func (s *Snippet) Id() string {
+func (s *snippet) ID() string {
 	h := sha1.New()
 	io.WriteString(h, salt)
 	h.Write(s.Body)
@@ -52,13 +50,13 @@ func share(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
-	c := appengine.NewContext(r)
+	ctx := r.Context()
 
 	var body bytes.Buffer
 	_, err := io.Copy(&body, io.LimitReader(r.Body, maxSnippetSize+1))
 	r.Body.Close()
 	if err != nil {
-		log.Errorf(c, "reading Body: %v", err)
+		fmt.Fprintf(os.Stderr, "reading Body: %v", err)
 		http.Error(w, "Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -67,13 +65,13 @@ func share(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snip := &Snippet{Body: body.Bytes()}
-	id := snip.Id()
-	key := datastore.NewKey(c, "Snippet", id, 0, nil)
-	_, err = datastore.Put(c, key, snip)
+	snip := &snippet{Body: body.Bytes()}
+	id := snip.ID()
+	key := datastore.NameKey("Snippet", id, nil)
+	_, err = datastoreClient.Put(ctx, key, snip)
 	if err != nil {
-		log.Errorf(c, "putting Snippet: %v", err)
-		http.Error(w, "Server Error", http.StatusInternalServerError)
+		fmt.Fprintf(os.Stderr, "putting Snippet: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 

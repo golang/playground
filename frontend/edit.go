@@ -8,11 +8,10 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"strings"
 
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/datastore"
-	"google.golang.org/appengine/log"
+	"cloud.google.com/go/datastore"
 )
 
 const hostname = "play.golang.org"
@@ -20,7 +19,7 @@ const hostname = "play.golang.org"
 var editTemplate = template.Must(template.ParseFiles("edit.html"))
 
 type editData struct {
-	Snippet *Snippet
+	Snippet *snippet
 	Share   bool
 }
 
@@ -31,25 +30,25 @@ func edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snip := &Snippet{Body: []byte(hello)}
+	snip := &snippet{Body: []byte(hello)}
 	if strings.HasPrefix(r.URL.Path, "/p/") {
 		if !allowShare(r) {
 			w.WriteHeader(http.StatusUnavailableForLegalReasons)
 			w.Write([]byte(`<h1>Unavailable For Legal Reasons</h1><p>Viewing and/or sharing code snippets is not available in your country for legal reasons. This message might also appear if your country is misdetected. If you believe this is an error, please <a href="https://golang.org/issue">file an issue</a>.</p>`))
 			return
 		}
-		c := appengine.NewContext(r)
+		ctx := r.Context()
 		id := r.URL.Path[3:]
 		serveText := false
 		if strings.HasSuffix(id, ".go") {
 			id = id[:len(id)-3]
 			serveText = true
 		}
-		key := datastore.NewKey(c, "Snippet", id, 0, nil)
-		err := datastore.Get(c, key, snip)
+		key := datastore.NameKey("Snippet", id, nil)
+		err := datastoreClient.Get(ctx, key, snip)
 		if err != nil {
 			if err != datastore.ErrNoSuchEntity {
-				log.Errorf(c, "loading Snippet: %v", err)
+				fmt.Fprintf(os.Stderr, "loading Snippet: %v", err)
 			}
 			http.Error(w, "Snippet not found", http.StatusNotFound)
 			return

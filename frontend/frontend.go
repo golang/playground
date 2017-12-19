@@ -5,14 +5,30 @@
 package main
 
 import (
+	"context"
+	"flag"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 
+	"cloud.google.com/go/compute/metadata"
+	"cloud.google.com/go/datastore"
 	"golang.org/x/tools/godoc/static"
-	"google.golang.org/appengine"
 )
 
+var datastoreClient *datastore.Client
+
 func main() {
+	flag.Parse()
+
+	var err error
+	datastoreClient, err = datastore.NewClient(context.Background(), projectID())
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	http.Handle("/", hstsHandler(edit))
 	http.Handle("/compile", hstsHandler(compile))
 	http.Handle("/fmt", hstsHandler(fmtHandler))
@@ -23,7 +39,27 @@ func main() {
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./static/favicon.ico")
 	})
-	appengine.Main()
+	http.HandleFunc("/_ah/health", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "ok")
+	})
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Listening on :%v ...", port)
+	http.ListenAndServe(":"+port, nil)
+}
+
+func projectID() string {
+	id := os.Getenv("DATASTORE_PROJECT_ID")
+	if id != "" {
+		return id
+	}
+	id, err := metadata.ProjectID()
+	if err != nil {
+		log.Fatalf("Could not determine the project ID (%v); If running locally, ensure DATASTORE_PROJECT_ID is set.", err)
+	}
+	return id
 }
 
 func play(w http.ResponseWriter, r *http.Request) {
