@@ -5,14 +5,34 @@ the Go playground: https://play.golang.org/
 
 To submit changes to this repository, see http://golang.org/doc/contribute.html.
 
-## Building
+## Frontend
+
+### Building
+
+```
+# build the frontend image
+docker build -t frontend frontend/
+```
+
+### Running
+
+```
+# run the frontend
+docker run -d --rm -p 8080:8080 frontend
+```
+
+Now visit localhost:8080 to ensure it worked.
+
+## Sandbox
+
+### Building
 
 ```
 # build the sandbox image
 docker build -t sandbox sandbox/
 ```
 
-## Running
+### Running
 
 ```
 # run the sandbox
@@ -30,10 +50,10 @@ To submit changes to this repository, see http://golang.org/doc/contribute.html.
 (Googlers only) To deploy the front-end, use `play/deploy.sh`.
 
 ```
-gcloud --project golang-org app deploy sandbox/app.yaml --no-promote --version=17rc6
+gcloud --project golang-org app deploy sandbox/app-flex.yaml --no-promote
 ```
 
 Use the Cloud Console's to set the new version as the default:
-	https://cloud.google.com/console/appengine/versions?project=golang-org&moduleId=sandbox
+https://cloud.google.com/console/appengine/versions?project=golang-org&moduleId=sandbox-flex
 Then test that play.golang.org and tour.golang.org are working before deleting
 the old version.
