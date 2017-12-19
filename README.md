@@ -24,7 +24,7 @@ gcloud components install cloud-datastore-emulator
 
 ```
 # run the datastore emulator
-gcloud --project golang-org beta emulators datastore start
+gcloud --project=golang-org beta emulators datastore start
 # set env vars
 $(gcloud beta emulators datastore env-init)
 # run the frontend
