@@ -6,7 +6,7 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -14,16 +14,20 @@ import (
 	"os"
 )
 
-const salt = "[replace this with something unique]"
+const (
+	// This salt is not meant to be kept secret (it’s checked in after all). It’s
+	// a tiny bit of paranoia to avoid whatever problems a collision may cause.
+	salt = "Go playground salt\n"
 
-const maxSnippetSize = 64 * 1024
+	maxSnippetSize = 64 * 1024
+)
 
 type snippet struct {
 	Body []byte
 }
 
 func (s *snippet) ID() string {
-	h := sha1.New()
+	h := sha256.New()
 	io.WriteString(h, salt)
 	h.Write(s.Body)
 	sum := h.Sum(nil)

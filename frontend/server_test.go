@@ -102,7 +102,7 @@ func TestShare(t *testing.T) {
 	}{
 		{"OPTIONS no-op", http.MethodOptions, http.StatusOK, nil, nil},
 		{"Non-POST request", http.MethodGet, http.StatusMethodNotAllowed, nil, nil},
-		{"Standard flow", http.MethodPost, http.StatusOK, []byte("Snippy McSnipface"), []byte("ti55j8ibFJ")},
+		{"Standard flow", http.MethodPost, http.StatusOK, []byte("Snippy McSnipface"), []byte("wX8wRZRjvv")},
 		{"Snippet too large", http.MethodPost, http.StatusRequestEntityTooLarge, make([]byte, maxSnippetSize+1), nil},
 	}
 
