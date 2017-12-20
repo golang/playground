@@ -1,4 +1,4 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -12,8 +12,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-
-	"cloud.google.com/go/datastore"
 )
 
 const salt = "[replace this with something unique]"
@@ -34,29 +32,27 @@ func (s *snippet) ID() string {
 	return string(b)[:10]
 }
 
-func share(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleShare(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if r.Method == "OPTIONS" {
 		// This is likely a pre-flight CORS request.
 		return
 	}
 	if r.Method != "POST" {
-		status := http.StatusMethodNotAllowed
-		http.Error(w, http.StatusText(status), status)
+		http.Error(w, "Requires POST", http.StatusMethodNotAllowed)
 		return
 	}
 	if !allowShare(r) {
-		status := http.StatusUnavailableForLegalReasons
-		http.Error(w, http.StatusText(status), status)
+		http.Error(w, "Either this isn't available in your country due to legal reasons, or our IP geolocation is wrong.",
+			http.StatusUnavailableForLegalReasons)
 		return
 	}
-	ctx := r.Context()
 
 	var body bytes.Buffer
 	_, err := io.Copy(&body, io.LimitReader(r.Body, maxSnippetSize+1))
 	r.Body.Close()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "reading Body: %v", err)
+		s.log.Errorf("reading Body: %v", err)
 		http.Error(w, "Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -67,10 +63,8 @@ func share(w http.ResponseWriter, r *http.Request) {
 
 	snip := &snippet{Body: body.Bytes()}
 	id := snip.ID()
-	key := datastore.NameKey("Snippet", id, nil)
-	_, err = datastoreClient.Put(ctx, key, snip)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "putting Snippet: %v", err)
+	if err := s.db.PutSnippet(r.Context(), id, snip); err != nil {
+		s.log.Errorf("putting Snippet: %v", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}

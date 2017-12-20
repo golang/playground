@@ -14,15 +14,17 @@ To submit changes to this repository, see http://golang.org/doc/contribute.html.
 docker build -t frontend frontend/
 ```
 
-### Dev Setup
+### Running with an in-memory store
 
 ```
+docker run --rm -d -p 8080:8080 frontend
+```
+
+### Running with the Cloud Datastore Emulator
+
+```
+# install it if needed
 gcloud components install cloud-datastore-emulator
-```
-
-### Running
-
-```
 # run the datastore emulator
 gcloud --project=golang-org beta emulators datastore start
 # set env vars
@@ -32,6 +34,11 @@ cd frontend && go install && frontend
 ```
 
 Now visit localhost:8080 to ensure it worked.
+
+```
+# unset any env vars once finished
+$(gcloud beta emulators datastore env-unset)
+```
 
 ## Sandbox
 

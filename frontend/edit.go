@@ -1,4 +1,4 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"os"
 	"strings"
 
 	"cloud.google.com/go/datastore"
@@ -23,7 +22,7 @@ type editData struct {
 	Share   bool
 }
 
-func edit(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 	// Redirect foo.play.golang.org to play.golang.org.
 	if strings.HasSuffix(r.Host, "."+hostname) {
 		http.Redirect(w, r, "https://"+hostname, http.StatusFound)
@@ -44,11 +43,10 @@ func edit(w http.ResponseWriter, r *http.Request) {
 			id = id[:len(id)-3]
 			serveText = true
 		}
-		key := datastore.NameKey("Snippet", id, nil)
-		err := datastoreClient.Get(ctx, key, snip)
-		if err != nil {
+
+		if err := s.db.GetSnippet(ctx, id, snip); err != nil {
 			if err != datastore.ErrNoSuchEntity {
-				fmt.Fprintf(os.Stderr, "loading Snippet: %v", err)
+				s.log.Errorf("loading Snippet: %v", err)
 			}
 			http.Error(w, "Snippet not found", http.StatusNotFound)
 			return
@@ -59,7 +57,7 @@ func edit(w http.ResponseWriter, r *http.Request) {
 					"Content-Disposition", fmt.Sprintf(`attachment; filename="%s.go"`, id),
 				)
 			}
-			w.Header().Set("Content-type", "text/plain")
+			w.Header().Set("Content-type", "text/plain; charset=utf-8")
 			w.Write(snip.Body)
 			return
 		}
