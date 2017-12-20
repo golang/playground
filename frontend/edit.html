@@ -3,6 +3,16 @@
 	<head>
 		<title>The Go Playground</title>
 		<link rel="stylesheet" href="/static/style.css">
+		{{if .Analytics}}
+		<script async src="https://www.googletagmanager.com/gtag/js?id=UA-11222381-7"></script>
+		<script>
+			window.dataLayer = window.dataLayer || [];
+			function gtag(){dataLayer.push(arguments);}
+			gtag('js', new Date());
+			gtag('config', 'UA-11222381-7');
+			gtag('config', 'UA-49880327-6');
+		</script>
+		{{end}}
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
 		<script src="/static/jquery-linedtextarea.js"></script>
 		<script src="/playground.js"></script>
@@ -49,20 +59,27 @@
 				about.show();
 			})
 			// Preserve "Imports" checkbox value between sessions.
-			if (readCookie('playgroundImports') == 'true')
+			if (readCookie('playgroundImports') == 'true') {
 				$('#imports').attr('checked','checked');
+			}
 			$('#imports').change(function() {
 				createCookie('playgroundImports', $(this).is(':checked') ? 'true' : '');
 			});
+			{{if .Analytics}}
 			// Fire Google Analytics events for Run/Share button clicks.
-			if (window.trackEvent) {
-				$('#run').click(function() {
-					window.trackEvent('playground', 'click', 'run-button');
+			$('#run').click(function() {
+				gtag('event', 'click', {
+					event_category: 'playground',
+					event_label: 'run-button',
 				});
-				$('#share').click(function() {
-					window.trackEvent('playground', 'click', 'share-button');
+			});
+			$('#share').click(function() {
+				gtag('event', 'click', {
+					event_category: 'playground',
+					event_label: 'share-button',
 				});
-			}
+			});
+			{{end}}
 		});
 
 		function createCookie(name, value) {

@@ -18,8 +18,9 @@ const hostname = "play.golang.org"
 var editTemplate = template.Must(template.ParseFiles("edit.html"))
 
 type editData struct {
-	Snippet *snippet
-	Share   bool
+	Snippet   *snippet
+	Share     bool
+	Analytics bool
 }
 
 func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
@@ -63,8 +64,9 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := &editData{
-		Snippet: snip,
-		Share:   allowShare(r),
+		Snippet:   snip,
+		Share:     allowShare(r),
+		Analytics: r.Host == hostname,
 	}
 	if err := editTemplate.Execute(w, data); err != nil {
 		s.log.Errorf("editTemplate.Execute(w, %+v): %v", data, err)
