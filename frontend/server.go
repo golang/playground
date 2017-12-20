@@ -74,7 +74,13 @@ func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if os.Getenv("GAE_INSTANCE") != "" {
+	if r.Header.Get("X-Forwarded-Proto") == "http" {
+		r.URL.Scheme = "https"
+		r.URL.Host = r.Host
+		http.Redirect(w, r, r.URL.String(), http.StatusFound)
+		return
+	}
+	if r.Header.Get("X-Forwarded-Proto") == "https" {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; preload")
 	}
 	s.mux.ServeHTTP(w, r)

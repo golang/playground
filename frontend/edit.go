@@ -36,7 +36,6 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`<h1>Unavailable For Legal Reasons</h1><p>Viewing and/or sharing code snippets is not available in your country for legal reasons. This message might also appear if your country is misdetected. If you believe this is an error, please <a href="https://golang.org/issue">file an issue</a>.</p>`))
 			return
 		}
-		ctx := r.Context()
 		id := r.URL.Path[3:]
 		serveText := false
 		if strings.HasSuffix(id, ".go") {
@@ -44,7 +43,7 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 			serveText = true
 		}
 
-		if err := s.db.GetSnippet(ctx, id, snip); err != nil {
+		if err := s.db.GetSnippet(r.Context(), id, snip); err != nil {
 			if err != datastore.ErrNoSuchEntity {
 				s.log.Errorf("loading Snippet: %v", err)
 			}
@@ -62,7 +61,15 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	editTemplate.Execute(w, &editData{snip, allowShare(r)})
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	data := &editData{
+		Snippet: snip,
+		Share:   allowShare(r),
+	}
+	if err := editTemplate.Execute(w, data); err != nil {
+		s.log.Errorf("editTemplate.Execute(w, %+v): %v", data, err)
+		return
+	}
 }
 
 const hello = `package main
