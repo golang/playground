@@ -33,7 +33,7 @@ func (s *snippet) ID() string {
 	sum := h.Sum(nil)
 	b := make([]byte, base64.URLEncoding.EncodedLen(len(sum)))
 	base64.URLEncoding.Encode(b, sum)
-	return string(b)[:10]
+	return string(b)[:11]
 }
 
 func (s *server) handleShare(w http.ResponseWriter, r *http.Request) {
