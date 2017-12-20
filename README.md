@@ -64,10 +64,12 @@ To submit changes to this repository, see http://golang.org/doc/contribute.html.
 
 # Deployment
 
-(Googlers only) To deploy the front-end, use `play/deploy.sh`.
+```
+gcloud --project=golang-org --account=person@example.com app deploy frontend/app.yaml
+```
 
 ```
-gcloud --project golang-org app deploy sandbox/app-flex.yaml --no-promote
+gcloud --project=golang-org --account=person@example.com app deploy sandbox/app-flex.yaml --no-promote
 ```
 
 Use the Cloud Console's to set the new version as the default:
