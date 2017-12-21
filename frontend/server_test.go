@@ -126,3 +126,21 @@ func TestShare(t *testing.T) {
 		}
 	}
 }
+
+func TestNoTrailingUnderscore(t *testing.T) {
+	const trailingUnderscoreSnip = `package main
+
+import "unsafe"
+
+type T struct{}
+
+func (T) m1()                         {}
+func (T) m2([unsafe.Sizeof(T.m1)]int) {}
+
+func main() {}
+`
+	snip := &snippet{[]byte(trailingUnderscoreSnip)}
+	if got, want := snip.ID(), "WCktUidLyc_3"; got != want {
+		t.Errorf("got %q; want %q", got, want)
+	}
+}
