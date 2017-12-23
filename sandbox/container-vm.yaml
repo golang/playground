@@ -1,8 +1,0 @@
-version: v1beta2
-containers:
-  - name: sandbox
-    # TODO(proppy): publish the sandbox image to the hub
-    image: golang/playground-sandbox
-    ports:
-      - containerPort: 8080
-        hostPort: 80

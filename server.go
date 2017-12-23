@@ -48,9 +48,9 @@ func newServer(options ...func(s *server) error) (*server, error) {
 
 func (s *server) init() {
 	s.mux.HandleFunc("/", s.handleEdit)
-	s.mux.HandleFunc("/compile", s.handleCompile)
 	s.mux.HandleFunc("/fmt", handleFmt)
 	s.mux.HandleFunc("/share", s.handleShare)
+	s.mux.HandleFunc("/compile", handleCompile)
 	s.mux.HandleFunc("/playground.js", s.handlePlaygroundJS)
 	s.mux.HandleFunc("/favicon.ico", handleFavicon)
 	s.mux.HandleFunc("/_ah/health", handleHealthCheck)
@@ -70,7 +70,11 @@ func handleFavicon(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "ok")
+	if err := healthCheck(); err != nil {
+		http.Error(w, "Health check failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprint(w, "ok")
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

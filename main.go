@@ -17,6 +17,11 @@ import (
 var log = newStdLogger()
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "test" {
+		test()
+		return
+	}
+
 	s, err := newServer(func(s *server) error {
 		pid := projectID()
 		if pid == "" {
