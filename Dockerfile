@@ -8,7 +8,8 @@ ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
 ENV GO_VERSION 1.9.2
-ENV BUILD_DEPS 'curl bzip2 git ca-certificates gcc patch libc6-dev'
+ENV DEPS 'ca-certificates'
+ENV BUILD_DEPS 'curl bzip2 git gcc patch libc6-dev'
 
 # Fake time
 COPY enable-fake-time.patch /usr/local/playground/
@@ -16,7 +17,7 @@ COPY enable-fake-time.patch /usr/local/playground/
 COPY fake_fs.lst /usr/local/playground/
 
 RUN set -x && \
-    apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends && rm -rf /var/lib/apt/lists/*
+    apt-get update && apt-get install -y ${BUILD_DEPS} ${DEPS} --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
 RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/49.0.2623.87/naclsdk_linux.tar.bz2 | tar -xj -C /usr/local/bin --strip-components=2 pepper_49/tools/sel_ldr_x86_64
 
