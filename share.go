@@ -23,7 +23,7 @@ const (
 )
 
 type snippet struct {
-	Body []byte
+	Body []byte `datastore:",noindex"` // golang.org/issues/23253
 }
 
 func (s *snippet) ID() string {
