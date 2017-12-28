@@ -17,11 +17,6 @@ import (
 var log = newStdLogger()
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "test" {
-		test()
-		return
-	}
-
 	s, err := newServer(func(s *server) error {
 		pid := projectID()
 		if pid == "" {
@@ -33,12 +28,21 @@ func main() {
 			}
 			s.db = cloudDatastore{client: c}
 		}
+		if os.Getenv("GAE_INSTANCE") != "" {
+			s.cache = newGobCache("memcached:11211")
+		}
 		s.log = log
 		return nil
 	})
 	if err != nil {
 		log.Fatalf("Error creating server: %v", err)
 	}
+
+	if len(os.Args) > 1 && os.Args[1] == "test" {
+		s.test()
+		return
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -48,10 +52,6 @@ func main() {
 }
 
 func projectID() string {
-	id := os.Getenv("DATASTORE_PROJECT_ID")
-	if id != "" {
-		return id
-	}
 	id, err := metadata.ProjectID()
 	if err != nil && os.Getenv("GAE_INSTANCE") != "" {
 		log.Fatalf("Could not determine the project ID: %v", err)

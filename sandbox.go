@@ -9,19 +9,25 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
+
+	"github.com/bradfitz/gomemcache/memcache"
 )
 
 const maxRunTime = 2 * time.Second
@@ -35,7 +41,7 @@ type response struct {
 	Events []Event
 }
 
-func handleCompile(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleCompile(w http.ResponseWriter, r *http.Request) {
 	var req request
 	// Until programs that depend on golang.org/x/tools/godoc/static/playground.js
 	// are updated to always send JSON, this check is in place.
@@ -45,18 +51,42 @@ func handleCompile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("error decoding request: %v", err), http.StatusBadRequest)
 		return
 	}
-	resp, err := compileAndRun(&req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+	resp := &response{}
+	key := cacheKey(req.Body)
+	if err := s.cache.Get(key, resp); err != nil {
+		if err != memcache.ErrCacheMiss {
+			s.log.Errorf("s.cache.Get(%q, &response): %v", key, err)
+		}
+		var err error
+		resp, err = s.compileAndRun(&req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := s.cache.Set(key, resp); err != nil {
+			s.log.Errorf("cache.Set(%q, %+v): %v", key, resp, err)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(resp); err != nil {
+		http.Error(w, fmt.Sprintf("error encoding response: %v", err), http.StatusInternalServerError)
 		return
 	}
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		http.Error(w, fmt.Sprintf("error encoding response: %v", err), http.StatusInternalServerError)
+	if _, err := io.Copy(w, &buf); err != nil {
+		s.log.Errorf("io.Copy(w, %+v): %v", buf, err)
 		return
 	}
 }
 
-func compileAndRun(req *request) (*response, error) {
+func cacheKey(body string) string {
+	h := sha256.New()
+	io.WriteString(h, body)
+	return fmt.Sprintf("prog-%s-%x", runtime.Version(), h.Sum(nil))
+}
+
+func (s *server) compileAndRun(req *request) (*response, error) {
 	// TODO(andybons): Add semaphore to limit number of running programs at once.
 	tmpDir, err := ioutil.TempDir("", "sandbox")
 	if err != nil {
@@ -116,8 +146,8 @@ func compileAndRun(req *request) (*response, error) {
 	return &response{Events: events}, nil
 }
 
-func healthCheck() error {
-	resp, err := compileAndRun(&request{Body: healthProg})
+func (s *server) healthCheck() error {
+	resp, err := s.compileAndRun(&request{Body: healthProg})
 	if err != nil {
 		return err
 	}
@@ -138,12 +168,12 @@ import "fmt"
 func main() { fmt.Print("ok") }
 `
 
-func test() {
-	if err := healthCheck(); err != nil {
+func (s *server) test() {
+	if err := s.healthCheck(); err != nil {
 		stdlog.Fatal(err)
 	}
 	for _, t := range tests {
-		resp, err := compileAndRun(&request{Body: t.prog})
+		resp, err := s.compileAndRun(&request{Body: t.prog})
 		if err != nil {
 			stdlog.Fatal(err)
 		}

@@ -15,9 +15,10 @@ import (
 )
 
 type server struct {
-	mux *http.ServeMux
-	db  store
-	log logger
+	mux   *http.ServeMux
+	db    store
+	log   logger
+	cache *gobCache
 
 	// When the executable was last modified. Used for caching headers of compiled assets.
 	modtime time.Time
@@ -50,10 +51,10 @@ func (s *server) init() {
 	s.mux.HandleFunc("/", s.handleEdit)
 	s.mux.HandleFunc("/fmt", handleFmt)
 	s.mux.HandleFunc("/share", s.handleShare)
-	s.mux.HandleFunc("/compile", handleCompile)
+	s.mux.HandleFunc("/compile", s.handleCompile)
 	s.mux.HandleFunc("/playground.js", s.handlePlaygroundJS)
 	s.mux.HandleFunc("/favicon.ico", handleFavicon)
-	s.mux.HandleFunc("/_ah/health", handleHealthCheck)
+	s.mux.HandleFunc("/_ah/health", s.handleHealthCheck)
 
 	staticHandler := http.StripPrefix("/static/", http.FileServer(http.Dir("./static")))
 	s.mux.Handle("/static/", staticHandler)
@@ -69,8 +70,8 @@ func handleFavicon(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "./static/favicon.ico")
 }
 
-func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
-	if err := healthCheck(); err != nil {
+func (s *server) handleHealthCheck(w http.ResponseWriter, r *http.Request) {
+	if err := s.healthCheck(); err != nil {
 		http.Error(w, "Health check failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
