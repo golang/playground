@@ -28,8 +28,11 @@ func main() {
 			}
 			s.db = cloudDatastore{client: c}
 		}
-		if os.Getenv("GAE_INSTANCE") != "" {
-			s.cache = newGobCache("memcached:11211")
+		if caddr := os.Getenv("MEMCACHED_ADDR"); caddr != "" {
+			s.cache = newGobCache(caddr)
+			log.Printf("App (project ID: %q) is caching results", pid)
+		} else {
+			log.Printf("App (project ID: %q) is NOT caching results", pid)
 		}
 		s.log = log
 		return nil

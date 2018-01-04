@@ -9,3 +9,6 @@ automatic_scaling:
 health_check:
   check_interval_sec: 20
   restart_threshold: 10
+
+env_variables:
+  MEMCACHED_ADDR: 'memcached:11211'
