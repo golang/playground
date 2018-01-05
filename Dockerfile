@@ -79,13 +79,13 @@ ENV REV=317e0006254c44a0ac427cc52a0e083ff0b9622f
 RUN go get -d github.com/googleapis/gax-go &&\
     (cd /go/src/github.com/googleapis/gax-go && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo golang.org/x/net at faacc1b (2017-12-07)
-ENV REV=faacc1b5e36e3ff02cbec9661c69ac63dd5a83ad
+# Repo golang.org/x/net at d866cfc (2017-12-12)
+ENV REV=d866cfc389cec985d6fda2859936a575a55a3ab6
 RUN go get -d golang.org/x/net/context `#and 8 other pkgs` &&\
     (cd /go/src/golang.org/x/net && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo golang.org/x/oauth2 at 6a2004c (2017-12-06)
-ENV REV=6a2004c8907a86949d71c664c81574897a4e55a6
+# Repo golang.org/x/oauth2 at 876b1c6 (2018-01-03)
+ENV REV=876b1c6ee618a9f8fa31ded3b27708d44b3153af
 RUN go get -d golang.org/x/oauth2 `#and 5 other pkgs` &&\
     (cd /go/src/golang.org/x/oauth2 && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
@@ -94,8 +94,8 @@ ENV REV=be25de41fadfae372d6470bda81ca6beb55ef551
 RUN go get -d golang.org/x/text/secure/bidirule `#and 4 other pkgs` &&\
     (cd /go/src/golang.org/x/text && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo golang.org/x/tools at b451b9a (2017-12-26)
-ENV REV=b451b9aaee4dcf75f9f28cddb69b9d0ed17a9752
+# Repo golang.org/x/tools at b790d0b (2018-01-05)
+ENV REV=b790d0ba0332a621d0b58cfd69fa13bd3dc358d2
 RUN go get -d golang.org/x/tools/go/ast/astutil `#and 3 other pkgs` &&\
     (cd /go/src/golang.org/x/tools && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
