@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 )
 
 const (
@@ -84,11 +83,7 @@ func (s *server) handleShare(w http.ResponseWriter, r *http.Request) {
 }
 
 func allowShare(r *http.Request) bool {
-	if os.Getenv("GAE_INSTANCE") == "" {
-		return true
-	}
-	switch r.Header.Get("X-AppEngine-Country") {
-	case "", "ZZ", "CN":
+	if r.Header.Get("X-AppEngine-Country") == "CN" {
 		return false
 	}
 	return true
