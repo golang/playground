@@ -7,7 +7,7 @@ LABEL maintainer "golang-dev@googlegroups.com"
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV GO_VERSION 1.9.2
+ENV GO_VERSION 1.9.3
 ENV DEPS 'ca-certificates'
 ENV BUILD_DEPS 'curl bzip2 git gcc patch libc6-dev'
 
