@@ -65,7 +65,7 @@ func (s *server) handleCompile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.cache.Set(key, resp); err != nil {
-			s.log.Errorf("cache.Set(%q, %+v): %v", key, resp, err)
+			s.log.Errorf("cache.Set(%q, resp): %v", key, err)
 		}
 	}
 
