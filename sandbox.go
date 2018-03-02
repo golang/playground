@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
@@ -91,6 +93,111 @@ func cacheKey(body string) string {
 	return fmt.Sprintf("prog-%s-%x", runtime.Version(), h.Sum(nil))
 }
 
+// isTestFunc tells whether fn has the type of a testing function.
+func isTestFunc(fn *ast.FuncDecl) bool {
+	if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 ||
+		fn.Type.Params.List == nil ||
+		len(fn.Type.Params.List) != 1 ||
+		len(fn.Type.Params.List[0].Names) > 1 {
+		return false
+	}
+	ptr, ok := fn.Type.Params.List[0].Type.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	// We can't easily check that the type is *testing.T
+	// because we don't know how testing has been imported,
+	// but at least check that it's *T or *something.T.
+	if name, ok := ptr.X.(*ast.Ident); ok && name.Name == "T" {
+		return true
+	}
+	if sel, ok := ptr.X.(*ast.SelectorExpr); ok && sel.Sel.Name == "T" {
+		return true
+	}
+	return false
+}
+
+// isTest tells whether name looks like a test (or benchmark, according to prefix).
+// It is a Test (say) if there is a character after Test that is not a lower-case letter.
+// We don't want TesticularCancer.
+func isTest(name, prefix string) bool {
+	if !strings.HasPrefix(name, prefix) {
+		return false
+	}
+	if len(name) == len(prefix) { // "Test" is ok
+		return true
+	}
+	return ast.IsExported(name[len(prefix):])
+}
+
+// getTestMain returns sources with main function which runs all found tests in src.
+// This happens if the main function is not present and there are appropriate test functions.
+// Otherwise it returns nil.
+// Examples are not supported yet. Benchmarks will never be supported because of sandboxing.
+func getTestMain(src []byte) []byte {
+	fset := token.NewFileSet()
+	// Early bail for most cases.
+	f, err := parser.ParseFile(fset, "main.go", src, parser.ImportsOnly)
+	if err != nil || f.Name.Name != "main" {
+		return nil
+	}
+	var testing bool
+	for _, s := range f.Imports {
+		if s.Path.Value == `"testing"` && s.Name == nil {
+			testing = true
+			break
+		}
+	}
+	if !testing {
+		return nil
+	}
+
+	// Parse everything and extract test names
+	f, err = parser.ParseFile(fset, "main.go", src, parser.ParseComments)
+	if err != nil {
+		return nil
+	}
+
+	var tests []string
+	for _, d := range f.Decls {
+		n, ok := d.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		name := n.Name.Name
+		switch {
+		case name == "main":
+			// main declared a method will not obstruct creation of our main function.
+			if n.Recv == nil {
+				return nil
+			}
+		case isTest(name, "Test") && isTestFunc(n):
+			tests = append(tests, name)
+		}
+	}
+
+	if len(tests) == 0 {
+		return nil
+	}
+	code := new(bytes.Buffer)
+	if err := testTmpl.Execute(code, tests); err != nil {
+		panic(err)
+	}
+	return code.Bytes()
+}
+
+var testTmpl = template.Must(template.New("main").Parse(`
+func main() {
+	matchAll := func(t string, pat string) (bool, error) { return true, nil }
+	tests := []testing.InternalTest{
+{{range .}}
+		{"{{.}}", {{.}}},
+{{end}}
+	}
+	testing.Main(matchAll, tests, nil, nil)
+}
+`))
+
 func (s *server) compileAndRun(req *request) (*response, error) {
 	// TODO(andybons): Add semaphore to limit number of running programs at once.
 	tmpDir, err := ioutil.TempDir("", "sandbox")
@@ -99,8 +206,9 @@ func (s *server) compileAndRun(req *request) (*response, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	src := []byte(req.Body)
 	in := filepath.Join(tmpDir, "main.go")
-	if err := ioutil.WriteFile(in, []byte(req.Body), 0400); err != nil {
+	if err := ioutil.WriteFile(in, src, 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
 
@@ -109,6 +217,15 @@ func (s *server) compileAndRun(req *request) (*response, error) {
 	f, err := parser.ParseFile(fset, in, nil, parser.PackageClauseOnly)
 	if err == nil && f.Name.Name != "main" {
 		return &response{Errors: "package name must be main"}, nil
+	}
+
+	var testParam string
+	if code := getTestMain(src); code != nil {
+		testParam = "-test.v"
+		src = append(src, code...)
+		if err := ioutil.WriteFile(in, src, 0400); err != nil {
+			return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
+		}
 	}
 
 	exe := filepath.Join(tmpDir, "a.out")
@@ -132,7 +249,7 @@ func (s *server) compileAndRun(req *request) (*response, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), maxRunTime)
 	defer cancel()
-	cmd = exec.CommandContext(ctx, "sel_ldr_x86_64", "-l", "/dev/null", "-S", "-e", exe)
+	cmd = exec.CommandContext(ctx, "sel_ldr_x86_64", "-l", "/dev/null", "-S", "-e", exe, testParam)
 	rec := new(Recorder)
 	cmd.Stdout = rec.Stdout()
 	cmd.Stderr = rec.Stderr()
@@ -326,4 +443,42 @@ func main() {
 /usr/local/go/lib
 /usr/local/go/lib/time
 /usr/local/go/lib/time/zoneinfo.zip`},
+	{prog: `
+package main
+
+import "testing"
+
+func TestSanity(t *testing.T) {
+	if 1+1 != 2 {
+		t.Error("uhh...")
+	}
+}
+`, want: `=== RUN   TestSanity
+--- PASS: TestSanity (0.00s)
+PASS`},
+
+	{prog: `
+package main
+
+func TestSanity(t *testing.T) {
+	t.Error("uhh...")
+}
+`, want: "", errors: "prog.go:4:20: undefined: testing\n"},
+
+	{prog: `
+package main
+
+import (
+	"fmt"
+	"testing"
+)
+
+func TestSanity(t *testing.T) {
+	t.Error("uhh...")
+}
+
+func main() {
+	fmt.Println("test")
+}
+`, want: "test"},
 }
