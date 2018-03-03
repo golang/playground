@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"runtime"
 	"strings"
 
 	"cloud.google.com/go/datastore"
@@ -21,6 +22,7 @@ type editData struct {
 	Snippet   *snippet
 	Share     bool
 	Analytics bool
+	GoVersion string
 }
 
 func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +69,7 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 		Snippet:   snip,
 		Share:     allowShare(r),
 		Analytics: r.Host == hostname,
+		GoVersion: runtime.Version(),
 	}
 	if err := editTemplate.Execute(w, data); err != nil {
 		s.log.Errorf("editTemplate.Execute(w, %+v): %v", data, err)
