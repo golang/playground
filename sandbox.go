@@ -30,7 +30,12 @@ import (
 	"github.com/bradfitz/gomemcache/memcache"
 )
 
-const maxRunTime = 2 * time.Second
+const (
+	maxRunTime = 2 * time.Second
+
+	// progName is the program name in compiler errors
+	progName = "prog.go"
+)
 
 type request struct {
 	Body string
@@ -113,9 +118,9 @@ func (s *server) compileAndRun(req *request) (*response, error) {
 		if _, ok := err.(*exec.ExitError); ok {
 			// Return compile errors to the user.
 
-			// Rewrite compiler errors to refer to 'prog.go'
+			// Rewrite compiler errors to refer to progName
 			// instead of '/tmp/sandbox1234/main.go'.
-			errs := strings.Replace(string(out), in, "prog.go", -1)
+			errs := strings.Replace(string(out), in, progName, -1)
 
 			// "go build", invoked with a file name, puts this odd
 			// message before any compile errors; strip it.
@@ -285,7 +290,7 @@ func main() {
 package test
 
 func main() {
-    println("test")
+	println("test")
 }
 `, want: "", errors: "package name must be main"},
 	{prog: `
