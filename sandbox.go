@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/ast"
+	"go/doc"
 	"go/parser"
 	"go/token"
 	"io"
@@ -130,29 +131,30 @@ func isTest(name, prefix string) bool {
 	return ast.IsExported(name[len(prefix):])
 }
 
-// getTestMain returns sources with main function which runs all found tests in src.
-// This happens if the main function is not present and there are appropriate test functions.
-// Otherwise it returns nil.
-// Examples are not supported yet. Benchmarks will never be supported because of sandboxing.
-func getTestMain(src []byte) []byte {
+// getTestProg returns source code that executes all valid tests and examples in src.
+// If the main function is present or there are no tests or examples, it returns nil.
+// getTestProg emulates the "go test" command as closely as possible.
+// Benchmarks are not supported because of sandboxing.
+func getTestProg(src []byte) []byte {
 	fset := token.NewFileSet()
 	// Early bail for most cases.
 	f, err := parser.ParseFile(fset, "main.go", src, parser.ImportsOnly)
 	if err != nil || f.Name.Name != "main" {
 		return nil
 	}
-	var testing bool
+
+	// importPos stores the position to inject the "testing" import declaration, if needed.
+	importPos := fset.Position(f.Name.End()).Offset
+
+	var testingImported bool
 	for _, s := range f.Imports {
 		if s.Path.Value == `"testing"` && s.Name == nil {
-			testing = true
+			testingImported = true
 			break
 		}
 	}
-	if !testing {
-		return nil
-	}
 
-	// Parse everything and extract test names
+	// Parse everything and extract test names.
 	f, err = parser.ParseFile(fset, "main.go", src, parser.ParseComments)
 	if err != nil {
 		return nil
@@ -167,7 +169,7 @@ func getTestMain(src []byte) []byte {
 		name := n.Name.Name
 		switch {
 		case name == "main":
-			// main declared a method will not obstruct creation of our main function.
+			// main declared as a method will not obstruct creation of our main function.
 			if n.Recv == nil {
 				return nil
 			}
@@ -176,25 +178,69 @@ func getTestMain(src []byte) []byte {
 		}
 	}
 
-	if len(tests) == 0 {
+	// Tests imply imported "testing" package in the code.
+	// If there is no import, bail to let the compiler produce an error.
+	if !testingImported && len(tests) > 0 {
 		return nil
 	}
+
+	// We emulate "go test". An example with no "Output" comment is compiled,
+	// but not executed. An example with no text after "Output:" is compiled,
+	// executed, and expected to produce no output.
+	var ex []*doc.Example
+	// exNoOutput indicates whether an example with no output is found.
+	// We need to compile the program containing such an example even if there are no
+	// other tests or examples.
+	exNoOutput := false
+	for _, e := range doc.Examples(f) {
+		if e.Output != "" || e.EmptyOutput {
+			ex = append(ex, e)
+		}
+		if e.Output == "" && !e.EmptyOutput {
+			exNoOutput = true
+		}
+	}
+
+	if len(tests) == 0 && len(ex) == 0 && !exNoOutput {
+		return nil
+	}
+
+	if !testingImported && (len(ex) > 0 || exNoOutput) {
+		// In case of the program with examples and no "testing" package imported,
+		// add import after "package main" without modifying line numbers.
+		importDecl := []byte(`;import "testing";`)
+		src = bytes.Join([][]byte{src[:importPos], importDecl, src[importPos:]}, nil)
+	}
+
+	data := struct {
+		Tests    []string
+		Examples []*doc.Example
+	}{
+		tests,
+		ex,
+	}
 	code := new(bytes.Buffer)
-	if err := testTmpl.Execute(code, tests); err != nil {
+	if err := testTmpl.Execute(code, data); err != nil {
 		panic(err)
 	}
-	return code.Bytes()
+	src = append(src, code.Bytes()...)
+	return src
 }
 
 var testTmpl = template.Must(template.New("main").Parse(`
 func main() {
 	matchAll := func(t string, pat string) (bool, error) { return true, nil }
 	tests := []testing.InternalTest{
-{{range .}}
+{{range .Tests}}
 		{"{{.}}", {{.}}},
 {{end}}
 	}
-	testing.Main(matchAll, tests, nil, nil)
+	examples := []testing.InternalExample{
+{{range .Examples}}
+		{"Example{{.Name}}", Example{{.Name}}, {{printf "%q" .Output}}, {{.Unordered}}},
+{{end}}
+	}
+	testing.Main(matchAll, tests, nil, examples)
 }
 `))
 
@@ -220,10 +266,9 @@ func (s *server) compileAndRun(req *request) (*response, error) {
 	}
 
 	var testParam string
-	if code := getTestMain(src); code != nil {
+	if code := getTestProg(src); code != nil {
 		testParam = "-test.v"
-		src = append(src, code...)
-		if err := ioutil.WriteFile(in, src, 0400); err != nil {
+		if err := ioutil.WriteFile(in, code, 0400); err != nil {
 			return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 		}
 	}
@@ -308,8 +353,15 @@ func (s *server) test() {
 		if resp.Errors != "" {
 			stdlog.Fatal(resp.Errors)
 		}
-		if len(resp.Events) != 1 || !strings.Contains(resp.Events[0].Message, t.want) {
-			stdlog.Fatalf("unexpected output: %v, want %q", resp.Events, t.want)
+		if len(resp.Events) == 0 {
+			stdlog.Fatalf("unexpected output: %q, want %q", "", t.want)
+		}
+		var b strings.Builder
+		for _, e := range resp.Events {
+			b.WriteString(e.Message)
+		}
+		if !strings.Contains(b.String(), t.want) {
+			stdlog.Fatalf("unexpected output: %q, want %q", b.String(), t.want)
 		}
 	}
 	fmt.Println("OK")
@@ -463,6 +515,10 @@ package main
 func TestSanity(t *testing.T) {
 	t.Error("uhh...")
 }
+
+func ExampleNotExecuted() {
+	// Output: it should not run
+}
 `, want: "", errors: "prog.go:4:20: undefined: testing\n"},
 
 	{prog: `
@@ -481,4 +537,82 @@ func main() {
 	fmt.Println("test")
 }
 `, want: "test"},
+
+	{prog: `
+package main//comment
+
+import "fmt"
+
+func ExampleOutput() {
+	fmt.Println("The output")
+	// Output: The output
+}
+`, want: `=== RUN   ExampleOutput
+--- PASS: ExampleOutput (0.00s)
+PASS`},
+
+	{prog: `
+package main//comment
+
+import "fmt"
+
+func ExampleUnorderedOutput() {
+	fmt.Println("2")
+	fmt.Println("1")
+	fmt.Println("3")
+	// Unordered output: 3
+	// 2
+	// 1
+}
+`, want: `=== RUN   ExampleUnorderedOutput
+--- PASS: ExampleUnorderedOutput (0.00s)
+PASS`},
+
+	{prog: `
+package main
+
+import "fmt"
+
+func ExampleEmptyOutput() {
+	// Output:
+}
+
+func ExampleEmptyOutputFail() {
+	fmt.Println("1")
+	// Output:
+}
+`, want: `=== RUN   ExampleEmptyOutput
+--- PASS: ExampleEmptyOutput (0.00s)
+=== RUN   ExampleEmptyOutputFail
+--- FAIL: ExampleEmptyOutputFail (0.00s)
+got:
+1
+want:
+
+FAIL`},
+
+	// Run program without executing this example function.
+	{prog: `
+package main
+
+func ExampleNoOutput() {
+	panic(1)
+}
+`, want: `testing: warning: no tests to run
+PASS`},
+
+	{prog: `
+package main
+
+import "fmt"
+
+func ExampleShouldNotRun() {
+	fmt.Println("The output")
+	// Output: The output
+}
+
+func main() {
+	fmt.Println("Main")
+}
+`, want: "Main"},
 }
