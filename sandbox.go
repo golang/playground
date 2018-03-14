@@ -62,7 +62,7 @@ func (s *server) handleCompile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &response{}
-	key := cacheKey(req.Body)
+	key := cacheKey("prog", req.Body)
 	if err := s.cache.Get(key, resp); err != nil {
 		if err != memcache.ErrCacheMiss {
 			s.log.Errorf("s.cache.Get(%q, &response): %v", key, err)
@@ -89,10 +89,10 @@ func (s *server) handleCompile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func cacheKey(body string) string {
+func cacheKey(prefix, body string) string {
 	h := sha256.New()
 	io.WriteString(h, body)
-	return fmt.Sprintf("prog-%s-%x", runtime.Version(), h.Sum(nil))
+	return fmt.Sprintf("%s-%s-%x", prefix, runtime.Version(), h.Sum(nil))
 }
 
 // isTestFunc tells whether fn has the type of a testing function.

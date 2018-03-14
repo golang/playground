@@ -50,6 +50,7 @@ func newServer(options ...func(s *server) error) (*server, error) {
 func (s *server) init() {
 	s.mux.HandleFunc("/", s.handleEdit)
 	s.mux.HandleFunc("/fmt", handleFmt)
+	s.mux.HandleFunc("/vet", s.handleVet)
 	s.mux.HandleFunc("/share", s.handleShare)
 	s.mux.HandleFunc("/compile", s.handleCompile)
 	s.mux.HandleFunc("/playground.js", s.handlePlaygroundJS)
