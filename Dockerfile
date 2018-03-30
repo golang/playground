@@ -1,66 +1,42 @@
 # Copyright 2017 The Go Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
-FROM debian:jessie
+FROM debian:jessie as builder
 LABEL maintainer "golang-dev@googlegroups.com"
 
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV GO_VERSION 1.10
-ENV DEPS 'ca-certificates'
-ENV BUILD_DEPS 'curl bzip2 git gcc patch libc6-dev'
+ENV CGO_ENABLED=0
+ENV GO_VERSION 1.10.1
+ENV BUILD_DEPS 'curl bzip2 git gcc patch libc6-dev ca-certificates'
 
 # Fake time
 COPY enable-fake-time.patch /usr/local/playground/
 # Fake file system
 COPY fake_fs.lst /usr/local/playground/
 
-RUN set -x && \
-    apt-get update && apt-get install -y ${BUILD_DEPS} ${DEPS} --no-install-recommends && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 
-RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/trunk.544461/naclsdk_linux.tar.bz2 | tar -xj -C /usr/local/bin --strip-components=2 pepper_67/tools/sel_ldr_x86_64
+RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/trunk.544461/naclsdk_linux.tar.bz2 | tar -xj -C /tmp --strip-components=2 pepper_67/tools/sel_ldr_x86_64
 
 # Get the Go binary.
-RUN curl -sSL https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz -o /tmp/go.tar.gz && \
-    curl -sSL https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz.sha256 -o /tmp/go.tar.gz.sha256 && \
-    echo "$(cat /tmp/go.tar.gz.sha256) /tmp/go.tar.gz" | sha256sum -c - && \
-    tar -C /usr/local/ -vxzf /tmp/go.tar.gz && \
-    rm /tmp/go.tar.gz /tmp/go.tar.gz.sha256 && \
-    # Make a copy for GOROOT_BOOTSTRAP, because we rebuild the toolchain and make.bash removes bin/go as its first step.
-    cp -R /usr/local/go $GOROOT_BOOTSTRAP && \
-    # Apply the fake time and fake filesystem patches.
-    patch /usr/local/go/src/runtime/rt0_nacl_amd64p32.s /usr/local/playground/enable-fake-time.patch && \
-    cd /usr/local/go && go run misc/nacl/mkzip.go -p syscall /usr/local/playground/fake_fs.lst src/syscall/fstest_nacl.go && \
-    # Re-build the Go toolchain.
-    cd /usr/local/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean && \
-    # Clean up.
-    rm -rf $GOROOT_BOOTSTRAP
-
-# Add and compile tour packages
-RUN GOOS=nacl GOARCH=amd64p32 go get \
-    golang.org/x/tour/pic \
-    golang.org/x/tour/reader \
-    golang.org/x/tour/tree \
-    golang.org/x/tour/wc \
-    golang.org/x/talks/2016/applicative/google && \
-    rm -rf $GOPATH/src/golang.org/x/tour/.git && \
-    rm -rf $GOPATH/src/golang.org/x/talks/.git
-
-# Add tour packages under their old import paths (so old snippets still work)
-RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
-    cp -R $GOPATH/src/golang.org/x/tour/* $GOPATH/src/code.google.com/p/go-tour/ && \
-    sed -i 's_// import_// public import_' $(find $GOPATH/src/code.google.com/p/go-tour/ -name *.go) && \
-    go install \
-    code.google.com/p/go-tour/pic \
-    code.google.com/p/go-tour/reader \
-    code.google.com/p/go-tour/tree \
-    code.google.com/p/go-tour/wc
+RUN curl -sSL https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz -o /tmp/go.tar.gz
+RUN curl -sSL https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz.sha256 -o /tmp/go.tar.gz.sha256
+RUN echo "$(cat /tmp/go.tar.gz.sha256) /tmp/go.tar.gz" | sha256sum -c -
+RUN tar -C /usr/local/ -vxzf /tmp/go.tar.gz
+# Make a copy for GOROOT_BOOTSTRAP, because we rebuild the toolchain and make.bash removes bin/go as its first step.
+RUN cp -R /usr/local/go $GOROOT_BOOTSTRAP
+# Apply the fake time and fake filesystem patches.
+RUN patch /usr/local/go/src/runtime/rt0_nacl_amd64p32.s /usr/local/playground/enable-fake-time.patch
+RUN cd /usr/local/go && go run misc/nacl/mkzip.go -p syscall /usr/local/playground/fake_fs.lst src/syscall/fstest_nacl.go
+# Re-build the Go toolchain.
+RUN cd /usr/local/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean
 
 # BEGIN deps (run `make update-deps` to update)
 
-# Repo cloud.google.com/go at 3051b91 (2017-12-06)
-ENV REV=3051b919da3b8d62bc3a57ab4b353ca1c72402d5
+# Repo cloud.google.com/go at 3afaae4 (2018-03-02)
+ENV REV=3afaae429987a1884530d6018d6e963a932d28c0
 RUN go get -d cloud.google.com/go/compute/metadata `#and 6 other pkgs` &&\
     (cd /go/src/cloud.google.com/go && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
@@ -69,8 +45,8 @@ ENV REV=1952afaa557dc08e8e0d89eafab110fb501c1a2b
 RUN go get -d github.com/bradfitz/gomemcache/memcache &&\
     (cd /go/src/github.com/bradfitz/gomemcache && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo github.com/golang/protobuf at 1e59b77 (2017-11-13)
-ENV REV=1e59b77b52bf8e4b449a57e6f79f21226d571845
+# Repo github.com/golang/protobuf at bbd03ef (2018-02-02)
+ENV REV=bbd03ef6da3a115852eaf24c8a1c46aeb39aa175
 RUN go get -d github.com/golang/protobuf/proto `#and 8 other pkgs` &&\
     (cd /go/src/github.com/golang/protobuf && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
@@ -79,38 +55,38 @@ ENV REV=317e0006254c44a0ac427cc52a0e083ff0b9622f
 RUN go get -d github.com/googleapis/gax-go &&\
     (cd /go/src/github.com/googleapis/gax-go && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo golang.org/x/net at d866cfc (2017-12-12)
-ENV REV=d866cfc389cec985d6fda2859936a575a55a3ab6
+# Repo golang.org/x/net at ae89d30 (2018-03-11)
+ENV REV=ae89d30ce0c63142b652837da33d782e2b0a9b25
 RUN go get -d golang.org/x/net/context `#and 8 other pkgs` &&\
     (cd /go/src/golang.org/x/net && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo golang.org/x/oauth2 at 876b1c6 (2018-01-03)
-ENV REV=876b1c6ee618a9f8fa31ded3b27708d44b3153af
+# Repo golang.org/x/oauth2 at 2f32c3a (2018-02-28)
+ENV REV=2f32c3ac0fa4fb807a0fcefb0b6f2468a0d99bd0
 RUN go get -d golang.org/x/oauth2 `#and 5 other pkgs` &&\
     (cd /go/src/golang.org/x/oauth2 && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo golang.org/x/text at be25de4 (2017-12-07)
-ENV REV=be25de41fadfae372d6470bda81ca6beb55ef551
+# Repo golang.org/x/text at b7ef84a (2018-03-02)
+ENV REV=b7ef84aaf62aa3e70962625c80a571ae7c17cb40
 RUN go get -d golang.org/x/text/secure/bidirule `#and 4 other pkgs` &&\
     (cd /go/src/golang.org/x/text && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo golang.org/x/tools at b790d0b (2018-01-05)
-ENV REV=b790d0ba0332a621d0b58cfd69fa13bd3dc358d2
+# Repo golang.org/x/tools at 77106db (2018-03-24)
+ENV REV=77106db15f689a60e7d4e085d967ac557b918fb2
 RUN go get -d golang.org/x/tools/go/ast/astutil `#and 3 other pkgs` &&\
     (cd /go/src/golang.org/x/tools && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo google.golang.org/api at 9a048ca (2017-12-07)
-ENV REV=9a048cac3675aa589c62a35d7d42b25451dd15f1
+# Repo google.golang.org/api at ab90adb (2018-02-22)
+ENV REV=ab90adb3efa287b869ecb698db42f923cc734972
 RUN go get -d google.golang.org/api/googleapi `#and 6 other pkgs` &&\
     (cd /go/src/google.golang.org/api && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo google.golang.org/genproto at 7f0da29 (2017-11-23)
-ENV REV=7f0da29060c682909f650ad8ed4e515bd74fa12a
+# Repo google.golang.org/genproto at 2c5e7ac (2018-03-02)
+ENV REV=2c5e7ac708aaa719366570dd82bda44541ca2a63
 RUN go get -d google.golang.org/genproto/googleapis/api/annotations `#and 4 other pkgs` &&\
     (cd /go/src/google.golang.org/genproto && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo google.golang.org/grpc at b8191e5 (2017-12-06)
-ENV REV=b8191e57b23de650278db4d23bf596219e5f3665
+# Repo google.golang.org/grpc at f0a1202 (2018-02-28)
+ENV REV=f0a1202acdc5c4702be05098d5ff8e9b3b444442
 RUN go get -d google.golang.org/grpc `#and 24 other pkgs` &&\
     (cd /go/src/google.golang.org/grpc && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
@@ -170,6 +146,7 @@ RUN go install cloud.google.com/go/compute/metadata \
 	google.golang.org/grpc/credentials \
 	google.golang.org/grpc/credentials/oauth \
 	google.golang.org/grpc/encoding \
+	google.golang.org/grpc/encoding/proto \
 	google.golang.org/grpc/grpclb/grpc_lb_v1/messages \
 	google.golang.org/grpc/grpclog \
 	google.golang.org/grpc/internal \
@@ -179,7 +156,6 @@ RUN go install cloud.google.com/go/compute/metadata \
 	google.golang.org/grpc/peer \
 	google.golang.org/grpc/resolver \
 	google.golang.org/grpc/resolver/dns \
-	google.golang.org/grpc/resolver/manual \
 	google.golang.org/grpc/resolver/passthrough \
 	google.golang.org/grpc/stats \
 	google.golang.org/grpc/status \
@@ -187,21 +163,49 @@ RUN go install cloud.google.com/go/compute/metadata \
 	google.golang.org/grpc/transport
 # END deps
 
-RUN apt-get purge -y --auto-remove ${BUILD_DEPS}
-
 # Add and compile playground daemon
 COPY . /go/src/playground/
 RUN go install playground
 
+FROM debian:jessie
+
+RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
+
+COPY --from=builder /usr/local/go /usr/local/go
+COPY --from=builder /tmp/sel_ldr_x86_64 /usr/local/bin
+
+ENV GOPATH /go
+ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
+
+# Add and compile tour packages
+RUN GOOS=nacl GOARCH=amd64p32 go get \
+    golang.org/x/tour/pic \
+    golang.org/x/tour/reader \
+    golang.org/x/tour/tree \
+    golang.org/x/tour/wc \
+    golang.org/x/talks/2016/applicative/google && \
+    rm -rf $GOPATH/src/golang.org/x/tour/.git && \
+    rm -rf $GOPATH/src/golang.org/x/talks/.git
+
+# Add tour packages under their old import paths (so old snippets still work)
+RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
+    cp -R $GOPATH/src/golang.org/x/tour/* $GOPATH/src/code.google.com/p/go-tour/ && \
+    sed -i 's_// import_// public import_' $(find $GOPATH/src/code.google.com/p/go-tour/ -name *.go) && \
+    go install \
+    code.google.com/p/go-tour/pic \
+    code.google.com/p/go-tour/reader \
+    code.google.com/p/go-tour/tree \
+    code.google.com/p/go-tour/wc
+
 RUN mkdir /app
 
+COPY --from=builder /go/bin/playground /app
 COPY edit.html /app
 COPY static /app/static
-
 WORKDIR /app
 
 # Run tests
-RUN /go/bin/playground test
+RUN /app/playground test
 
 EXPOSE 8080
-ENTRYPOINT ["/go/bin/playground"]
+ENTRYPOINT ["/app/playground"]
