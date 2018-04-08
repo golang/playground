@@ -19,22 +19,22 @@ func TestDecode(t *testing.T) {
 	stdout.Write([]byte("head"))
 	stdout.Write(pbWrite(0, "one"))
 	stdout.Write(pbWrite(0, "two"))
+
 	stderr.Write(pbWrite(1*time.Second, "three"))
-	stdout.Write(pbWrite(2*time.Second, "four"))
-	stderr.Write(pbWrite(3*time.Second, "five"))
+	stderr.Write(pbWrite(2*time.Second, "five"))
+	stdout.Write(pbWrite(2*time.Second-time.Nanosecond, "four"))
+	stderr.Write(pbWrite(2*time.Second, "six"))
+
 	stdout.Write([]byte("middle"))
-	stderr.Write(pbWrite(4*time.Second, "six"))
-	stdout.Write(pbWrite(4*time.Second, "seven"))
+	stdout.Write(pbWrite(3*time.Second, "seven"))
 	stdout.Write([]byte("tail"))
 
 	want := []Event{
 		{"headonetwo", "stdout", 0},
 		{"three", "stderr", time.Second},
-		{"four", "stdout", time.Second},
-		{"five", "stderr", time.Second},
-		{"middle", "stdout", 0},
-		{"six", "stderr", time.Second},
-		{"seventail", "stdout", 0},
+		{"fourmiddle", "stdout", time.Second - time.Nanosecond},
+		{"fivesix", "stderr", time.Nanosecond},
+		{"seventail", "stdout", time.Second},
 	}
 
 	got, err := r.Events()
@@ -42,7 +42,7 @@ func TestDecode(t *testing.T) {
 		t.Fatalf("Decode: %v", err)
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %v, want %v", got, want)
+		t.Errorf("got: \n%v,\nwant \n%v", got, want)
 	}
 }
 

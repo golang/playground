@@ -35,41 +35,27 @@ var epoch = time.Unix(1257894000, 0)
 // 	4 bytes: big-endian int32, length of the next write
 //
 type Recorder struct {
-	mu     sync.Mutex
-	writes []recorderWrite
+	stdout, stderr recorderWriter
 }
 
-type recorderWrite struct {
-	b    []byte
-	kind string
-}
-
-func (r *Recorder) Stdout() io.Writer { return recorderWriter{r, "stdout"} }
-func (r *Recorder) Stderr() io.Writer { return recorderWriter{r, "stderr"} }
+func (r *Recorder) Stdout() io.Writer { return &r.stdout }
+func (r *Recorder) Stderr() io.Writer { return &r.stderr }
 
 type recorderWriter struct {
-	r    *Recorder
-	kind string
+	mu     sync.Mutex
+	writes []byte
 }
 
-func (w recorderWriter) Write(b []byte) (n int, err error) {
-	w.r.mu.Lock()
-	defer w.r.mu.Unlock()
+func (w *recorderWriter) bytes() []byte {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.writes[0:len(w.writes):len(w.writes)]
+}
 
-	// Append this write to the previous one if it has the same kind.
-	if len(w.r.writes) > 0 {
-		prev := &w.r.writes[len(w.r.writes)-1]
-		if prev.kind == w.kind {
-			prev.b = append(prev.b, b...)
-			return len(b), nil
-		}
-	}
-
-	// Otherwise, append a new write.
-	w.r.writes = append(w.r.writes, recorderWrite{
-		append([]byte(nil), b...), w.kind,
-	})
-
+func (w *recorderWriter) Write(b []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.writes = append(w.writes, b...)
 	return len(b), nil
 }
 
@@ -80,31 +66,36 @@ type Event struct {
 }
 
 func (r *Recorder) Events() ([]Event, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	stdout, stderr := r.stdout.bytes(), r.stderr.bytes()
+
+	evOut, err := decode("stdout", stdout)
+	if err != nil {
+		return nil, err
+	}
+	evErr, err := decode("stderr", stderr)
+	if err != nil {
+		return nil, err
+	}
+
+	events := sortedMerge(evOut, evErr)
 
 	var (
 		out []Event
 		now = epoch
 	)
-	for _, w := range r.writes {
-		events, err := decode(w.kind, w.b)
-		if err != nil {
-			return nil, err
+
+	for _, e := range events {
+		delay := e.time.Sub(now)
+		if delay < 0 {
+			delay = 0
 		}
-		for _, e := range events {
-			delay := e.time.Sub(now)
-			if delay < 0 {
-				delay = 0
-			}
-			out = append(out, Event{
-				Message: string(sanitize(e.msg)),
-				Kind:    e.kind,
-				Delay:   delay,
-			})
-			if delay > 0 {
-				now = e.time
-			}
+		out = append(out, Event{
+			Message: string(sanitize(e.msg)),
+			Kind:    e.kind,
+			Delay:   delay,
+		})
+		if delay > 0 {
+			now = e.time
 		}
 	}
 	return out, nil
@@ -182,6 +173,31 @@ func decode(kind string, output []byte) ([]event, error) {
 		i += n
 	}
 	return events, nil
+}
+
+// Sorted merge of two slices of events into one slice.
+func sortedMerge(a, b []event) []event {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+
+	sorted := make([]event, 0, len(a)+len(b))
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		if a[i].time.Before(b[j].time) {
+			sorted = append(sorted, a[i])
+			i++
+		} else {
+			sorted = append(sorted, b[j])
+			j++
+		}
+	}
+	sorted = append(sorted, a[i:]...)
+	sorted = append(sorted, b[j:]...)
+	return sorted
 }
 
 // sanitize scans b for invalid utf8 code points. If found, it reconstructs
