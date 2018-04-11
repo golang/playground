@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"text/template"
@@ -344,6 +345,12 @@ func (s *server) test() {
 		if err != nil {
 			stdlog.Fatal(err)
 		}
+		if t.wantEvents != nil {
+			if !reflect.DeepEqual(resp.Events, t.wantEvents) {
+				stdlog.Fatalf("resp.Events = %q, want %q", resp.Events, t.wantEvents)
+			}
+			continue
+		}
 		if t.errors != "" {
 			if resp.Errors != t.errors {
 				stdlog.Fatalf("resp.Errors = %q, want %q", resp.Errors, t.errors)
@@ -369,6 +376,7 @@ func (s *server) test() {
 
 var tests = []struct {
 	prog, want, errors string
+	wantEvents         []Event
 }{
 	{prog: `
 package main
@@ -631,4 +639,32 @@ func main() {
 	fmt.Fprintln(os.Stdout, "A")
 }
 `, want: "A\nB\nA\nA\n"},
+
+	// Integration test for runtime.write fake timestamps.
+	{prog: `
+package main
+
+import (
+	"fmt"
+	"os"
+	"time"
+)
+
+func main() {
+	fmt.Fprintln(os.Stdout, "A")
+	fmt.Fprintln(os.Stderr, "B")
+	fmt.Fprintln(os.Stdout, "A")
+	fmt.Fprintln(os.Stdout, "A")
+	time.Sleep(time.Second)
+	fmt.Fprintln(os.Stderr, "B")
+	time.Sleep(time.Second)
+	fmt.Fprintln(os.Stdout, "A")
+}
+`, wantEvents: []Event{
+		{"A\n", "stdout", 0},
+		{"B\n", "stderr", time.Nanosecond},
+		{"A\nA\n", "stdout", time.Nanosecond},
+		{"B\n", "stderr", time.Second - 2*time.Nanosecond},
+		{"A\n", "stdout", time.Second},
+	}},
 }
