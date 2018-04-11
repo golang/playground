@@ -1,0 +1,83 @@
+From 9fd794d3a2e2b02688fe3a42c4c2c6d19d8dd668 Mon Sep 17 00:00:00 2001
+From: "Bryan C. Mills" <bcmills@google.com>
+Date: Fri, 6 Apr 2018 16:19:30 -0400
+Subject: [PATCH] runtime: make Playground timestamps change when the stream fd
+ changes
+
+The process reading the output of the binary may read stderr and
+stdout separately, and may interleave reads from the two streams
+arbitrarily. Because we explicitly serialize writes on the writer
+side, we can reuse a timestamp within a single stream without losing
+information; however, if we use the same timestamp for write on both
+streams, the reader can't tell how to interleave them.
+
+This change ensures that every time we change between the two fds, we
+also bump the timestamp. That way, writes within a stream continue to
+show the same timestamp, but a sorted merge of the contents of the two
+streams always interleaves them in the correct order.
+
+This still requires a corresponding change to the Playground parser to
+actually reconstruct the correct interleaving. It currently merges the
+two streams without reordering them; it should instead buffer them
+separately and perform a sorted merge. (See
+https://golang.org/cl/105496.)
+
+Updates golang/go#24615.
+Updates golang/go#24659.
+
+Change-Id: Id789dfcc02eb4247906c9ddad38dac50cf829979
+---
+ src/runtime/os_nacl.go          |  9 +++++++++
+ src/runtime/sys_nacl_amd64p32.s | 16 ++++++++++++++++
+ 2 files changed, 25 insertions(+)
+
+diff --git a/src/runtime/os_nacl.go b/src/runtime/os_nacl.go
+index d03cb8faf2..7b8a7d548e 100644
+--- a/src/runtime/os_nacl.go
++++ b/src/runtime/os_nacl.go
+@@ -289,6 +289,15 @@ type gsignalStack struct{}
+ 
+ var writelock uint32 // test-and-set spin lock for write
+ 
++// lastfaketime stores the last faketime value written to fd 1 or 2.
++var lastfaketime int64
++
++// lastfaketimefd stores the fd to which lastfaketime was written.
++//
++// Subsequent writes to the same fd may use the same timestamp,
++// but the timestamp must increase if the fd changes.
++var lastfaketimefd int32
++
+ /*
+ An attempt at IRT. Doesn't work. See end of sys_nacl_amd64.s.
+ 
+diff --git a/src/runtime/sys_nacl_amd64p32.s b/src/runtime/sys_nacl_amd64p32.s
+index ff4c2e7bb5..4c4d509576 100644
+--- a/src/runtime/sys_nacl_amd64p32.s
++++ b/src/runtime/sys_nacl_amd64p32.s
+@@ -89,6 +89,22 @@ playback:
+ 	CMPL BX, $0
+ 	JNE playback
+ 
++	MOVQ runtime·lastfaketime(SB), CX
++	MOVL runtime·lastfaketimefd(SB), BX
++	CMPL DI, BX
++	JE samefd
++
++	// If the current fd doesn't match the fd of the previous write,
++	// ensure that the timestamp is strictly greater. That way, we can
++	// recover the original order even if we read the fds separately.
++	INCQ CX
++	MOVL DI, runtime·lastfaketimefd(SB)
++
++samefd:
++	CMPQ AX, CX
++	CMOVQLT CX, AX
++	MOVQ AX, runtime·lastfaketime(SB)
++
+ 	// Playback header: 0 0 P B <8-byte time> <4-byte data length>
+ 	MOVL $(('B'<<24) | ('P'<<16)), 0(SP)
+ 	BSWAPQ AX
+-- 
+2.17.0.484.g0c8726318c-goog
+

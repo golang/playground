@@ -615,4 +615,20 @@ func main() {
 	fmt.Println("Main")
 }
 `, want: "Main"},
+
+	{prog: `
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	fmt.Fprintln(os.Stdout, "A")
+	fmt.Fprintln(os.Stderr, "B")
+	fmt.Fprintln(os.Stdout, "A")
+	fmt.Fprintln(os.Stdout, "A")
+}
+`, want: "A\nB\nA\nA\n"},
 }
