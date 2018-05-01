@@ -8,7 +8,7 @@ ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
 ENV CGO_ENABLED=0
-ENV GO_VERSION 1.10.1
+ENV GO_VERSION 1.10.2
 ENV BUILD_DEPS 'curl bzip2 git gcc patch libc6-dev ca-certificates'
 
 # Fake time
