@@ -72,8 +72,8 @@ ENV REV=b7ef84aaf62aa3e70962625c80a571ae7c17cb40
 RUN go get -d golang.org/x/text/secure/bidirule `#and 4 other pkgs` &&\
     (cd /go/src/golang.org/x/text && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
-# Repo golang.org/x/tools at 77106db (2018-03-24)
-ENV REV=77106db15f689a60e7d4e085d967ac557b918fb2
+# Repo golang.org/x/tools at 48418e5 (2018-05-08)
+ENV REV=48418e5732e1b1e2a10207c8007a5f959e422f20
 RUN go get -d golang.org/x/tools/go/ast/astutil `#and 3 other pkgs` &&\
     (cd /go/src/golang.org/x/tools && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
 
