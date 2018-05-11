@@ -50,42 +50,51 @@ type response struct {
 	Events []Event
 }
 
-func (s *server) handleCompile(w http.ResponseWriter, r *http.Request) {
-	var req request
-	// Until programs that depend on golang.org/x/tools/godoc/static/playground.js
-	// are updated to always send JSON, this check is in place.
-	if b := r.FormValue("body"); b != "" {
-		req.Body = b
-	} else if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("error decoding request: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	resp := &response{}
-	key := cacheKey("prog", req.Body)
-	if err := s.cache.Get(key, resp); err != nil {
-		if err != memcache.ErrCacheMiss {
-			s.log.Errorf("s.cache.Get(%q, &response): %v", key, err)
-		}
-		var err error
-		resp, err = s.compileAndRun(&req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+// commandHandler returns an http.HandlerFunc.
+// This handler creates a *request, assigning the "Body" field a value
+// from the "body" form parameter or from the HTTP request body.
+// If there is no cached *response for the combination of cachePrefix and request.Body,
+// handler calls cmdFunc and in case of a nil error, stores the value of *response in the cache.
+func (s *server) commandHandler(cachePrefix string, cmdFunc func(*request) (*response, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req request
+		// Until programs that depend on golang.org/x/tools/godoc/static/playground.js
+		// are updated to always send JSON, this check is in place.
+		if b := r.FormValue("body"); b != "" {
+			req.Body = b
+		} else if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.log.Errorf("error decoding request: %v", err)
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
-		if err := s.cache.Set(key, resp); err != nil {
-			s.log.Errorf("cache.Set(%q, resp): %v", key, err)
-		}
-	}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(resp); err != nil {
-		http.Error(w, fmt.Sprintf("error encoding response: %v", err), http.StatusInternalServerError)
-		return
-	}
-	if _, err := io.Copy(w, &buf); err != nil {
-		s.log.Errorf("io.Copy(w, %+v): %v", buf, err)
-		return
+		resp := &response{}
+		key := cacheKey(cachePrefix, req.Body)
+		if err := s.cache.Get(key, resp); err != nil {
+			if err != memcache.ErrCacheMiss {
+				s.log.Errorf("s.cache.Get(%q, &response): %v", key, err)
+			}
+			resp, err = cmdFunc(&req)
+			if err != nil {
+				s.log.Errorf("cmdFunc error: %v", err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			if err := s.cache.Set(key, resp); err != nil {
+				s.log.Errorf("cache.Set(%q, resp): %v", key, err)
+			}
+		}
+
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(resp); err != nil {
+			s.log.Errorf("error encoding response: %v", err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		if _, err := io.Copy(w, &buf); err != nil {
+			s.log.Errorf("io.Copy(w, &buf): %v", err)
+			return
+		}
 	}
 }
 
@@ -245,7 +254,11 @@ func main() {
 }
 `))
 
-func (s *server) compileAndRun(req *request) (*response, error) {
+// compileAndRun tries to build and run a user program.
+// The output of successfully ran program is returned in *response.Events.
+// If a program cannot be built or has timed out,
+// *response.Errors contains an explanation for a user.
+func compileAndRun(req *request) (*response, error) {
 	// TODO(andybons): Add semaphore to limit number of running programs at once.
 	tmpDir, err := ioutil.TempDir("", "sandbox")
 	if err != nil {
@@ -315,7 +328,7 @@ func (s *server) compileAndRun(req *request) (*response, error) {
 }
 
 func (s *server) healthCheck() error {
-	resp, err := s.compileAndRun(&request{Body: healthProg})
+	resp, err := compileAndRun(&request{Body: healthProg})
 	if err != nil {
 		return err
 	}
@@ -341,7 +354,7 @@ func (s *server) test() {
 		stdlog.Fatal(err)
 	}
 	for _, t := range tests {
-		resp, err := s.compileAndRun(&request{Body: t.prog})
+		resp, err := compileAndRun(&request{Body: t.prog})
 		if err != nil {
 			stdlog.Fatal(err)
 		}

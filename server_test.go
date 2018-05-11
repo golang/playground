@@ -144,3 +144,70 @@ func main() {}
 		t.Errorf("got %q; want %q", got, want)
 	}
 }
+
+func TestCommandHandler(t *testing.T) {
+	s, err := newServer(func(s *server) error {
+		s.db = &inMemStore{}
+		// testLogger makes tests fail.
+		// Should we verify that s.log.Errorf was called
+		// instead of just printing or failing the test?
+		s.log = newStdLogger()
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("newServer(testingOptions(t)): %v", err)
+	}
+	testHandler := s.commandHandler("test", func(r *request) (*response, error) {
+		if r.Body == "fail" {
+			return nil, fmt.Errorf("non recoverable")
+		}
+		if r.Body == "error" {
+			return &response{Errors: "errors"}, nil
+		}
+		resp := &response{Events: []Event{{r.Body, "stdout", 0}}}
+		return resp, nil
+	})
+
+	testCases := []struct {
+		desc       string
+		method     string
+		statusCode int
+		reqBody    []byte
+		respBody   []byte
+	}{
+		{"OPTIONS request", http.MethodOptions, http.StatusBadRequest, nil, nil},
+		{"GET request", http.MethodGet, http.StatusBadRequest, nil, nil},
+		{"Empty POST", http.MethodPost, http.StatusBadRequest, nil, nil},
+		{"Failed cmdFunc", http.MethodPost, http.StatusInternalServerError, []byte(`{"Body":"fail"}`), nil},
+		{"Standard flow", http.MethodPost, http.StatusOK,
+			[]byte(`{"Body":"ok"}`),
+			[]byte(`{"Errors":"","Events":[{"Message":"ok","Kind":"stdout","Delay":0}]}
+`),
+		},
+		{"Errors in response", http.MethodPost, http.StatusOK,
+			[]byte(`{"Body":"error"}`),
+			[]byte(`{"Errors":"errors","Events":null}
+`),
+		},
+	}
+
+	for _, tc := range testCases {
+		req := httptest.NewRequest(tc.method, "/compile", bytes.NewReader(tc.reqBody))
+		w := httptest.NewRecorder()
+		testHandler(w, req)
+		resp := w.Result()
+		if got, want := resp.StatusCode, tc.statusCode; got != want {
+			t.Errorf("%s: got unexpected status code %d; want %d", tc.desc, got, want)
+		}
+		if tc.respBody != nil {
+			defer resp.Body.Close()
+			b, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Errorf("%s: ioutil.ReadAll(resp.Body): %v", tc.desc, err)
+			}
+			if !bytes.Equal(b, tc.respBody) {
+				t.Errorf("%s: got unexpected body %q; want %q", tc.desc, b, tc.respBody)
+			}
+		}
+	}
+}
