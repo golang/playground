@@ -175,7 +175,7 @@ func TestCommandHandler(t *testing.T) {
 		reqBody    []byte
 		respBody   []byte
 	}{
-		{"OPTIONS request", http.MethodOptions, http.StatusBadRequest, nil, nil},
+		{"OPTIONS request", http.MethodOptions, http.StatusOK, nil, nil},
 		{"GET request", http.MethodGet, http.StatusBadRequest, nil, nil},
 		{"Empty POST", http.MethodPost, http.StatusBadRequest, nil, nil},
 		{"Failed cmdFunc", http.MethodPost, http.StatusInternalServerError, []byte(`{"Body":"fail"}`), nil},
@@ -196,6 +196,10 @@ func TestCommandHandler(t *testing.T) {
 		w := httptest.NewRecorder()
 		testHandler(w, req)
 		resp := w.Result()
+		corsHeader := "Access-Control-Allow-Origin"
+		if got, want := resp.Header.Get(corsHeader), "*"; got != want {
+			t.Errorf("%s: %q header: got %q; want %q", tc.desc, corsHeader, got, want)
+		}
 		if got, want := resp.StatusCode, tc.statusCode; got != want {
 			t.Errorf("%s: got unexpected status code %d; want %d", tc.desc, got, want)
 		}
