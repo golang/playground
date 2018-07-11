@@ -29,6 +29,10 @@ func vetCheck(req *request) (*response, error) {
 	}
 
 	cmd := exec.Command("go", "vet", in)
+	// Linux go binary is not built with CGO_ENABLED=0.
+	// Prevent vet to compile packages in cgo mode.
+	// See #26307.
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		return &response{}, nil
