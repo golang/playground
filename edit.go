@@ -32,6 +32,12 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Serve 404 for /foo.
+	if r.URL.Path != "/" && !strings.HasPrefix(r.URL.Path, "/p/") {
+		http.NotFound(w, r)
+		return
+	}
+
 	snip := &snippet{Body: []byte(hello)}
 	if strings.HasPrefix(r.URL.Path, "/p/") {
 		if !allowShare(r) {

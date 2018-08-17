@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -42,8 +43,8 @@ func TestEdit(t *testing.T) {
 	id := "bar"
 	barBody := []byte("Snippy McSnipface")
 	snip := &snippet{Body: barBody}
-	if err := s.db.PutSnippet(nil, id, snip); err != nil {
-		t.Fatalf("s.dbPutSnippet(nil, %+v, %+v): %v", id, snip, err)
+	if err := s.db.PutSnippet(context.Background(), id, snip); err != nil {
+		t.Fatalf("s.dbPutSnippet(context.Background(), %+v, %+v): %v", id, snip, err)
 	}
 
 	testCases := []struct {
@@ -54,6 +55,7 @@ func TestEdit(t *testing.T) {
 		respBody   []byte
 	}{
 		{"foo.play.golang.org to play.golang.org", "https://foo.play.golang.org", http.StatusFound, map[string]string{"Location": "https://play.golang.org"}, nil},
+		{"Non-existent page", "https://play.golang.org/foo", http.StatusNotFound, nil, nil},
 		{"Unknown snippet", "https://play.golang.org/p/foo", http.StatusNotFound, nil, nil},
 		{"Existing snippet", "https://play.golang.org/p/" + id, http.StatusOK, nil, nil},
 		{"Plaintext snippet", "https://play.golang.org/p/" + id + ".go", http.StatusOK, nil, barBody},
