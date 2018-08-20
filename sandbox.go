@@ -41,6 +41,9 @@ const (
 	progName = "prog.go"
 )
 
+// Runtime error strings that will not be cached if found in an Event message.
+var nonCachingRuntimeErrors = []string{"out of memory", "cannot allocate memory"}
+
 type request struct {
 	Body string
 }
@@ -86,6 +89,18 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(*request) (*res
 				s.log.Errorf("cmdFunc error: %v", err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
+			}
+			for _, el := range resp.Events {
+				if el.Kind != "stderr" {
+					continue
+				}
+				for _, e := range nonCachingRuntimeErrors {
+					if strings.Contains(el.Message, e) {
+						s.log.Errorf("cmdFunc runtime error: %q", el.Message)
+						http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+						return
+					}
+				}
 			}
 			if err := s.cache.Set(key, resp); err != nil {
 				s.log.Errorf("cache.Set(%q, resp): %v", key, err)

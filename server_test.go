@@ -166,6 +166,15 @@ func TestCommandHandler(t *testing.T) {
 		if r.Body == "error" {
 			return &response{Errors: "errors"}, nil
 		}
+		if r.Body == "oom-error" {
+			// To throw an oom in a local playground instance, increase the server timeout
+			// to 20 seconds (within sandbox.go), spin up the Docker instance and run
+			// this code: https://play.golang.org/p/aaCv86m0P14.
+			return &response{Events: []Event{{"out of memory", "stderr", 0}}}, nil
+		}
+		if r.Body == "allocate-memory-error" {
+			return &response{Events: []Event{{"cannot allocate memory", "stderr", 0}}}, nil
+		}
 		resp := &response{Events: []Event{{r.Body, "stdout", 0}}}
 		return resp, nil
 	})
@@ -191,6 +200,10 @@ func TestCommandHandler(t *testing.T) {
 			[]byte(`{"Errors":"errors","Events":null}
 `),
 		},
+		{"Out of memory error in response body event message", http.MethodPost, http.StatusInternalServerError,
+			[]byte(`{"Body":"oom-error"}`), nil},
+		{"Cannot allocate memory error in response body event message", http.MethodPost, http.StatusInternalServerError,
+			[]byte(`{"Body":"allocate-memory-error"}`), nil},
 	}
 
 	for _, tc := range testCases {
