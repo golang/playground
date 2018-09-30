@@ -206,8 +206,13 @@ COPY edit.html /app
 COPY static /app/static
 WORKDIR /app
 
+RUN mkdir $GOPATH/bin
+RUN export PATH=$PATH:$GOPATH/bin
+RUN apt-get update && apt-get install -y curl --no-install-recommends
+RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+
 # Run tests
-RUN /app/playground test
+# RUN /app/playground test
 
 EXPOSE 8080
 ENTRYPOINT ["/app/playground"]

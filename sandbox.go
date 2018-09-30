@@ -282,9 +282,11 @@ func main() {
 // *response.Errors contains an explanation for a user.
 func compileAndRun(req *request) (*response, error) {
 	// TODO(andybons): Add semaphore to limit number of running programs at once.
-	tmpDir, err := ioutil.TempDir("", "sandbox")
+	gopath := os.Getenv("GOPATH")
+	tmpDir := filepath.Join(gopath, "src", "sandbox")
+	err := exec.Command("mkdir", tmpDir).Run()
 	if err != nil {
-		return nil, fmt.Errorf("error creating temp directory: %v", err)
+		return nil, fmt.Errorf("error creating temp dir %s: %v", tmpDir, err)
 	}
 	defer os.RemoveAll(tmpDir)
 
@@ -310,6 +312,24 @@ func compileAndRun(req *request) (*response, error) {
 	}
 
 	exe := filepath.Join(tmpDir, "a.out")
+	currentDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	fmt.Println(tmpDir)
+	err = os.Chdir(tmpDir)
+	if err != nil {
+		panic(err)
+	}
+	depInit := exec.Command("dep", "init", ".")
+	if result, err := depInit.CombinedOutput(); err != nil {
+		fmt.Println(string(result))
+		panic(err)
+	}
+
+	depEnsure := exec.Command("dep", "ensure")
+	if err := depEnsure.Run(); err != nil {
+		panic(err)
+	}
+	os.Chdir(currentDir)
+
 	cmd := exec.Command("go", "build", "-o", exe, in)
 	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOPATH=" + os.Getenv("GOPATH")}
 	if out, err := cmd.CombinedOutput(); err != nil {
