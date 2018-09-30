@@ -17,9 +17,11 @@ import (
 // In case of no errors it returns an empty, non-nil *response.
 // Otherwise &response.Errors contains found errors.
 func vetCheck(req *request) (*response, error) {
-	tmpDir, err := ioutil.TempDir("", "vet")
+	gopath := os.Getenv("GOPATH")
+	tmpDir := filepath.Join(gopath, "src", "sandbox")
+	err := exec.Command("mkdir", tmpDir).Run()
 	if err != nil {
-		return nil, fmt.Errorf("error creating temp directory: %v", err)
+		return nil, fmt.Errorf("error creating temp dir %s: %v", tmpDir, err)
 	}
 	defer os.RemoveAll(tmpDir)
 
@@ -27,6 +29,12 @@ func vetCheck(req *request) (*response, error) {
 	if err := ioutil.WriteFile(in, []byte(req.Body), 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
+
+	err = exec.Command("mkdir", tmpDir).Run()
+	if err != nil {
+		return nil, fmt.Errorf("error creating temp dir %s: %v", tmpDir, err)
+	}
+	defer os.RemoveAll(tmpDir)
 
 	cmd := exec.Command("go", "vet", in)
 	// Linux go binary is not built with CGO_ENABLED=0.

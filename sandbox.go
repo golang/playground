@@ -313,7 +313,6 @@ func compileAndRun(req *request) (*response, error) {
 
 	exe := filepath.Join(tmpDir, "a.out")
 	currentDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	fmt.Println(tmpDir)
 	err = os.Chdir(tmpDir)
 	if err != nil {
 		panic(err)
