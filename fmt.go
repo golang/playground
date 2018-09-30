@@ -8,7 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/format"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/tools/imports"
@@ -26,7 +30,30 @@ func handleFmt(w http.ResponseWriter, r *http.Request) {
 		err error
 	)
 	if r.FormValue("imports") != "" {
-		out, err = imports.Process(progName, in, nil)
+		gopath := os.Getenv("GOPATH")
+		tmpDir := filepath.Join(gopath, "src", "sandbox")
+		err = exec.Command("mkdir", "-p", tmpDir).Run()
+		sourcePath := filepath.Join(tmpDir, "main.go")
+		ioutil.WriteFile(sourcePath, in, 0400)
+
+		currentDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+		err = os.Chdir(tmpDir)
+		if err != nil {
+			panic(err)
+		}
+		depInit := exec.Command("dep", "init", ".")
+		if result, err := depInit.CombinedOutput(); err != nil {
+			fmt.Println(string(result))
+			panic(err)
+		}
+
+		depEnsure := exec.Command("dep", "ensure")
+		if err := depEnsure.Run(); err != nil {
+			panic(err)
+		}
+		os.Chdir(currentDir)
+
+		out, err = imports.Process(sourcePath, nil, nil)
 	} else {
 		out, err = format.Source(in)
 	}

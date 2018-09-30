@@ -199,17 +199,17 @@ RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
     code.google.com/p/go-tour/tree \
     code.google.com/p/go-tour/wc
 
+RUN mkdir $GOPATH/bin
+RUN export PATH=$PATH:$GOPATH/bin
+RUN apt-get update && apt-get install -y curl --no-install-recommends
+RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+
 RUN mkdir /app
 
 COPY --from=builder /go/bin/playground /app
 COPY edit.html /app
 COPY static /app/static
 WORKDIR /app
-
-RUN mkdir $GOPATH/bin
-RUN export PATH=$PATH:$GOPATH/bin
-RUN apt-get update && apt-get install -y curl --no-install-recommends
-RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
 # Run tests
 RUN /app/playground test
