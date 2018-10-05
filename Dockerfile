@@ -8,12 +8,11 @@ ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
 ENV CGO_ENABLED=0
-ENV GO_VERSION 1.10.3
+ENV GO_VERSION 1.11.1
 ENV BUILD_DEPS 'curl bzip2 git gcc patch libc6-dev ca-certificates'
 
 # Fake time
 COPY enable-fake-time.patch /usr/local/playground/
-COPY strict-time.patch /usr/local/playground/
 # Fake file system
 COPY fake_fs.lst /usr/local/playground/
 
@@ -30,7 +29,6 @@ RUN tar -C /usr/local/ -vxzf /tmp/go.tar.gz
 RUN cp -R /usr/local/go $GOROOT_BOOTSTRAP
 # Apply the fake time and fake filesystem patches.
 RUN patch /usr/local/go/src/runtime/rt0_nacl_amd64p32.s /usr/local/playground/enable-fake-time.patch
-RUN patch -p1 -d /usr/local/go </usr/local/playground/strict-time.patch
 RUN cd /usr/local/go && go run misc/nacl/mkzip.go -p syscall /usr/local/playground/fake_fs.lst src/syscall/fstest_nacl.go
 # Re-build the Go toolchain.
 RUN cd /usr/local/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean
