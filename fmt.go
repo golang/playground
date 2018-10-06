@@ -41,16 +41,12 @@ func handleFmt(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			panic(err)
 		}
-		depInit := exec.Command("dep", "init", ".")
+		depInit := exec.Command("go", "get", ".")
 		if result, err := depInit.CombinedOutput(); err != nil {
 			fmt.Println(string(result))
 			panic(err)
 		}
 
-		depEnsure := exec.Command("dep", "ensure")
-		if err := depEnsure.Run(); err != nil {
-			panic(err)
-		}
 		os.Chdir(currentDir)
 
 		out, err = imports.Process(sourcePath, nil, nil)

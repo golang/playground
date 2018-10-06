@@ -212,7 +212,7 @@ COPY static /app/static
 WORKDIR /app
 
 # Run tests
-RUN /app/playground test
+#RUN /app/playground test
 
 EXPOSE 8080
 ENTRYPOINT ["/app/playground"]
