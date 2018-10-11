@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -49,8 +50,11 @@ type request struct {
 }
 
 type response struct {
-	Errors string
-	Events []Event
+	Errors      string
+	Events      []Event
+	Status      int
+	IsTest      bool
+	TestsFailed int
 }
 
 // commandHandler returns an http.HandlerFunc.
@@ -276,6 +280,8 @@ func main() {
 }
 `))
 
+var failedTestPattern = "--- FAIL"
+
 // compileAndRun tries to build and run a user program.
 // The output of successfully ran program is returned in *response.Events.
 // If a program cannot be built or has timed out,
@@ -334,19 +340,36 @@ func compileAndRun(req *request) (*response, error) {
 	rec := new(Recorder)
 	cmd.Stdout = rec.Stdout()
 	cmd.Stderr = rec.Stderr()
+	var status int
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return &response{Errors: "process took too long"}, nil
+			// Send what was captured before the timeout.
+			events, err := rec.Events()
+			if err != nil {
+				return nil, fmt.Errorf("error decoding events: %v", err)
+			}
+			return &response{Errors: "process took too long", Events: events}, nil
 		}
-		if _, ok := err.(*exec.ExitError); !ok {
+		exitErr, ok := err.(*exec.ExitError)
+		if !ok {
 			return nil, fmt.Errorf("error running sandbox: %v", err)
+		}
+		if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+			status = ws.ExitStatus()
 		}
 	}
 	events, err := rec.Events()
 	if err != nil {
 		return nil, fmt.Errorf("error decoding events: %v", err)
 	}
-	return &response{Events: events}, nil
+	var fails int
+	if testParam != "" {
+		// In case of testing the TestsFailed field contains how many tests have failed.
+		for _, e := range events {
+			fails += strings.Count(e.Message, failedTestPattern)
+		}
+	}
+	return &response{Events: events, Status: status, IsTest: testParam != "", TestsFailed: fails}, nil
 }
 
 func (s *server) healthCheck() error {
