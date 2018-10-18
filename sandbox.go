@@ -320,7 +320,7 @@ func compileAndRun(req *request) (*response, error) {
 	depInit := exec.Command("go", "get", ".")
 	if result, err := depInit.CombinedOutput(); err != nil {
 		fmt.Println(string(result))
-		panic(err)
+		// Ignore error. コンパイル時エラーがあるときに失敗するので
 	}
 
 	os.Chdir(currentDir)

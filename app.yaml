@@ -9,9 +9,5 @@ resources:
 automatic_scaling:
   min_num_instances: 5
 
-readiness_check:
-  path: "/_ah/health"
-  check_interval_sec: 60
-
 env_variables:
   MEMCACHED_ADDR: 'memcached:11211'
