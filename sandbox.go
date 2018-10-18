@@ -493,26 +493,26 @@ func main() {
 `, want: "timers fired as expected"},
 
 	{prog: `
-	package main
-	
-	import (
-		"code.google.com/p/go-tour/pic"
-		"code.google.com/p/go-tour/reader"
-		"code.google.com/p/go-tour/tree"
-		"code.google.com/p/go-tour/wc"
-	)
-	
-	var (
-		_ = pic.Show
-		_ = reader.Validate
-		_ = tree.New
-		_ = wc.Test
-	)
-	
-	func main() {
-		println("ok")
-	}
-	`, want: "ok"},
+package main
+
+import (
+	"code.google.com/p/go-tour/pic"
+	"code.google.com/p/go-tour/reader"
+	"code.google.com/p/go-tour/tree"
+	"code.google.com/p/go-tour/wc"
+)
+
+var (
+	_ = pic.Show
+	_ = reader.Validate
+	_ = tree.New
+	_ = wc.Test
+)
+
+func main() {
+	println("ok")
+}
+`, want: "ok"},
 	{prog: `
 package test
 
