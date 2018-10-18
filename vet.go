@@ -31,6 +31,19 @@ func vetCheck(req *request) (*response, error) {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
 
+	currentDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	err = os.Chdir(tmpDir)
+	if err != nil {
+		panic(err)
+	}
+	depInit := exec.Command("go", "get", ".")
+	if result, err := depInit.CombinedOutput(); err != nil {
+		fmt.Println(string(result))
+		// Ignore error. コンパイル時エラーがあるときに失敗するので
+	}
+
+	os.Chdir(currentDir)
+
 	cmd := exec.Command("go", "vet", in)
 	// Linux go binary is not built with CGO_ENABLED=0.
 	// Prevent vet to compile packages in cgo mode.
