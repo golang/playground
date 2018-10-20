@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"cloud.google.com/go/datastore"
+	"github.com/rerost/playground/model/snippet"
 )
 
 const hostname = "play.golang.org"
@@ -19,7 +19,7 @@ const hostname = "play.golang.org"
 var editTemplate = template.Must(template.ParseFiles("edit.html"))
 
 type editData struct {
-	Snippet   *snippet
+	Snippet   *snippet.Snippet
 	Share     bool
 	Analytics bool
 	GoVersion string
@@ -38,7 +38,7 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snip := &snippet{Body: []byte(hello)}
+	snip := &snippet.Snippet{Body: []byte(hello)}
 	if strings.HasPrefix(r.URL.Path, "/p/") {
 		if !allowShare(r) {
 			w.WriteHeader(http.StatusUnavailableForLegalReasons)
@@ -53,7 +53,7 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.db.GetSnippet(r.Context(), id, snip); err != nil {
-			if err != datastore.ErrNoSuchEntity {
+			if err != s.db.ErrNoSuchEntity() {
 				s.log.Errorf("loading Snippet: %v", err)
 			}
 			http.Error(w, "Snippet not found", http.StatusNotFound)
