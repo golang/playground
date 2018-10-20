@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/rerost/playground/model/snippet"
 )
 
 type testLogger struct {
@@ -42,7 +44,7 @@ func TestEdit(t *testing.T) {
 	}
 	id := "bar"
 	barBody := []byte("Snippy McSnipface")
-	snip := &snippet{Body: barBody}
+	snip := &snippet.Snippet{Body: barBody}
 	if err := s.db.PutSnippet(context.Background(), id, snip); err != nil {
 		t.Fatalf("s.dbPutSnippet(context.Background(), %+v, %+v): %v", id, snip, err)
 	}
@@ -141,7 +143,7 @@ func (T) m2([unsafe.Sizeof(T.m1)]int) {}
 
 func main() {}
 `
-	snip := &snippet{[]byte(trailingUnderscoreSnip)}
+	snip := &snippet.Snippet{Body: []byte(trailingUnderscoreSnip)}
 	if got, want := snip.ID(), "WCktUidLyc_3"; got != want {
 		t.Errorf("got %q; want %q", got, want)
 	}

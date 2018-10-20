@@ -14,6 +14,7 @@ import (
 	"cloud.google.com/go/datastore"
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/rerost/playground/infra/cache"
+	"github.com/rerost/playground/infra/store"
 )
 
 var log = newStdLogger()
@@ -22,13 +23,13 @@ func main() {
 	s, err := newServer(func(s *server) error {
 		pid := projectID()
 		if pid == "" {
-			s.db = &inMemStore{}
+			s.db = store.NewClientInMem()
 		} else {
 			c, err := datastore.NewClient(context.Background(), pid)
 			if err != nil {
 				return fmt.Errorf("could not create cloud datastore client: %v", err)
 			}
-			s.db = cloudDatastore{client: c}
+			s.db = store.NewClienG(c)
 		}
 		if caddr := os.Getenv("MEMCACHED_ADDR"); caddr != "" {
 			s.cache = cache.NewGobCacheM(memcache.New(caddr))

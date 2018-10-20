@@ -12,12 +12,13 @@ import (
 	"time"
 
 	"github.com/rerost/playground/infra/cache"
+	"github.com/rerost/playground/infra/store"
 	"golang.org/x/tools/godoc/static"
 )
 
 type server struct {
 	mux   *http.ServeMux
-	db    store
+	db    store.Store
 	log   logger
 	cache cache.GobCache
 
