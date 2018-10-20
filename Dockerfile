@@ -163,6 +163,9 @@ RUN go install cloud.google.com/go/compute/metadata \
 	google.golang.org/grpc/status \
 	google.golang.org/grpc/tap \
 	google.golang.org/grpc/transport
+
+RUN go get github.com/gomodule/redigo/redis
+
 # END deps
 
 # Add and compile playground daemon

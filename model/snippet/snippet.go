@@ -32,3 +32,11 @@ func (s *Snippet) ID() string {
 	}
 	return string(b)[:hashLen]
 }
+
+func Decode(b []byte) *Snippet {
+	return &Snippet{Body: b}
+}
+
+func Encode(s *Snippet) []byte {
+	return s.Body
+}

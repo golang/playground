@@ -6,9 +6,11 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"cloud.google.com/go/datastore"
+	"github.com/gomodule/redigo/redis"
 	"github.com/rerost/playground/model/snippet"
 )
 
@@ -41,14 +43,14 @@ func (s *cloudDatastoreImp) ErrNoSuchEntity() error {
 	return datastore.ErrNoSuchEntity
 }
 
-func NewClientInMem() Store {
-	return &inMemStore{}
-}
-
 // inMemStore is a store backed by a map that should only be used for testing.
 type inMemStore struct {
 	sync.RWMutex
 	m map[string]*snippet.Snippet // key -> snippet
+}
+
+func NewClientInMem() Store {
+	return &inMemStore{}
 }
 
 func (s *inMemStore) PutSnippet(_ context.Context, id string, snip *snippet.Snippet) error {
@@ -76,4 +78,40 @@ func (s *inMemStore) GetSnippet(_ context.Context, id string, snip *snippet.Snip
 
 func (s *inMemStore) ErrNoSuchEntity() error {
 	return datastore.ErrNoSuchEntity
+}
+
+// redis
+type redisStoreImp struct {
+	pool *redis.Pool
+}
+
+func NewClientRedis(pool *redis.Pool) Store {
+	return redisStoreImp{
+		pool: pool,
+	}
+}
+
+func (s redisStoreImp) PutSnippet(ctx context.Context, id string, snip *snippet.Snippet) error {
+	_, err := s.pool.Get().Do("SET", id, snippet.Encode(snip))
+	return err
+}
+
+func (s redisStoreImp) GetSnippet(ctx context.Context, id string, snip *snippet.Snippet) error {
+	exists, err := redis.Bool(s.pool.Get().Do("EXISTS", id))
+
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		return s.ErrNoSuchEntity()
+	}
+
+	v, err := redis.Bytes(s.pool.Get().Do("GET", id))
+	*snip = *snippet.Decode(v)
+	return err
+}
+
+func (s redisStoreImp) ErrNoSuchEntity() error {
+	return fmt.Errorf("Not found")
 }

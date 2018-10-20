@@ -6,15 +6,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 
 	"cloud.google.com/go/compute/metadata"
-	"cloud.google.com/go/datastore"
-	"github.com/bradfitz/gomemcache/memcache"
-	"github.com/rerost/playground/infra/cache"
-	"github.com/rerost/playground/infra/store"
+	"github.com/rerost/playground/middleware"
 )
 
 var log = newStdLogger()
@@ -22,22 +18,23 @@ var log = newStdLogger()
 func main() {
 	s, err := newServer(func(s *server) error {
 		pid := projectID()
-		if pid == "" {
-			s.db = store.NewClientInMem()
+		var m middleware.Middleware
+		var err error
+
+		if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+			m, err = middleware.MiddlewareForRedis(context.Background(), redisURL)
+		} else if pid == "" {
+			m, err = middleware.MiddlewareForDevelopment(context.Background())
 		} else {
-			c, err := datastore.NewClient(context.Background(), pid)
-			if err != nil {
-				return fmt.Errorf("could not create cloud datastore client: %v", err)
-			}
-			s.db = store.NewClienG(c)
+			m, err = middleware.MiddlewareForGAE(context.Background(), pid)
 		}
-		if caddr := os.Getenv("MEMCACHED_ADDR"); caddr != "" {
-			s.cache = cache.NewGobCacheM(memcache.New(caddr))
-			log.Printf("App (project ID: %q) is caching results", pid)
-		} else {
-			s.cache = cache.NewGobCacheM(nil)
-			log.Printf("App (project ID: %q) is NOT caching results", pid)
+
+		if err != nil {
+			return err
 		}
+
+		s.db = m.DB
+		s.cache = m.Cache
 		s.log = log
 		return nil
 	})
