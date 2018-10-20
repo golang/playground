@@ -1,0 +1,24 @@
+version: '3.7'
+services:
+  playground:
+    environment:
+      - DB_HOST=postgres
+      - REDIS_URL=redis://redis:6379
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    ports:
+      - 1234:8080
+    depends_on:
+      - redis
+  redis:
+    image: redis:5.0.0-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server
+    volumes:
+      - redis-data:/data
+volumes:
+  redis-data:
+    driver: local
+
