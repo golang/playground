@@ -75,7 +75,7 @@ func (c *redisImp) Set(key string, v interface{}) error {
 		return err
 	}
 
-	_, err := c.pool.Get().Do("SET", buf.Bytes())
+	_, err := c.pool.Get().Do("SET", key, buf.Bytes())
 	return err
 }
 

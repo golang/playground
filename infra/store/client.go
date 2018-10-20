@@ -103,7 +103,7 @@ func (s redisStoreImp) GetSnippet(ctx context.Context, id string, snip *snippet.
 		return err
 	}
 
-	if exists {
+	if !exists {
 		return s.ErrNoSuchEntity()
 	}
 
