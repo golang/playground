@@ -30,8 +30,6 @@ import (
 	"strings"
 	"text/template"
 	"time"
-
-	"github.com/bradfitz/gomemcache/memcache"
 )
 
 const (
@@ -81,7 +79,7 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(*request) (*res
 		resp := &response{}
 		key := cacheKey(cachePrefix, req.Body)
 		if err := s.cache.Get(key, resp); err != nil {
-			if err != memcache.ErrCacheMiss {
+			if err != s.cache.ErrCacheMiss() {
 				s.log.Errorf("s.cache.Get(%q, &response): %v", key, err)
 			}
 			resp, err = cmdFunc(&req)

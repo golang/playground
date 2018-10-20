@@ -12,6 +12,8 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/datastore"
+	"github.com/bradfitz/gomemcache/memcache"
+	"github.com/rerost/playground/infra/cache"
 )
 
 var log = newStdLogger()
@@ -29,9 +31,10 @@ func main() {
 			s.db = cloudDatastore{client: c}
 		}
 		if caddr := os.Getenv("MEMCACHED_ADDR"); caddr != "" {
-			s.cache = newGobCache(caddr)
+			s.cache = cache.NewGobCacheM(memcache.New(caddr))
 			log.Printf("App (project ID: %q) is caching results", pid)
 		} else {
+			s.cache = cache.NewGobCacheM(nil)
 			log.Printf("App (project ID: %q) is NOT caching results", pid)
 		}
 		s.log = log
