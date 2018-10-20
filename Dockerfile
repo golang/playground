@@ -166,8 +166,8 @@ RUN go install cloud.google.com/go/compute/metadata \
 # END deps
 
 # Add and compile playground daemon
-COPY . /go/src/playground/
-RUN go install playground
+COPY . /go/src/github.com/rerost/playground/
+RUN go install github.com/rerost/playground
 
 FROM debian:jessie
 

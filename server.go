@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rerost/playground/infra/cache"
 	"golang.org/x/tools/godoc/static"
 )
 
@@ -18,7 +19,7 @@ type server struct {
 	mux   *http.ServeMux
 	db    store
 	log   logger
-	cache *gobCache
+	cache cache.GobCache
 
 	// When the executable was last modified. Used for caching headers of compiled assets.
 	modtime time.Time
