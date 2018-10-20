@@ -1,3 +1,14 @@
+# rerost/playground
+This Playground is a Playground that can specify the package of the third party. In addition, GCP-independent deployment is also possible as a data store.
+
+1. You can also use third party things like this
+1. It does not require GCP
+
+I support redis. But, If you want to use other storage, You need implement
+1. https://github.com/rerost/playground/blob/master/infra/cache/client.go 
+1. https://github.com/rerost/playground/blob/master/infra/store/client.go
+1. https://github.com/rerost/playground/blob/master/middleware/middleware.go
+
 # playground
 
 This subrepository holds the source for the Go playground:
