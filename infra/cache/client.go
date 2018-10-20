@@ -7,8 +7,10 @@ package cache
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 
 	"github.com/bradfitz/gomemcache/memcache"
+	"github.com/gomodule/redigo/redis"
 )
 
 // GobCache stores and retrieves values using a memcache client using the gob
@@ -33,7 +35,7 @@ func (c *memcacheImp) Set(key string, v interface{}) error {
 		return nil
 	}
 	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(v); err != nil {
+	if err := encode(buf, v); err != nil {
 		return err
 	}
 	return c.client.Set(&memcache.Item{Key: key, Value: buf.Bytes()})
@@ -41,15 +43,66 @@ func (c *memcacheImp) Set(key string, v interface{}) error {
 
 func (c *memcacheImp) Get(key string, v interface{}) error {
 	if c == nil || c.client == nil {
-		return memcache.ErrCacheMiss
+		return c.ErrCacheMiss()
 	}
 	item, err := c.client.Get(key)
 	if err != nil {
 		return err
 	}
-	return gob.NewDecoder(bytes.NewBuffer(item.Value)).Decode(v)
+
+	return decode(item.Value, v)
 }
 
 func (c *memcacheImp) ErrCacheMiss() error {
 	return memcache.ErrCacheMiss
+}
+
+type redisImp struct {
+	pool *redis.Pool
+}
+
+func NewGobCacheR(pool *redis.Pool) GobCache {
+	return &redisImp{pool}
+}
+
+func (c *redisImp) Set(key string, v interface{}) error {
+	if c == nil || c.pool == nil {
+		return nil
+	}
+
+	var buf bytes.Buffer
+	if err := encode(buf, v); err != nil {
+		return err
+	}
+
+	_, err := c.pool.Get().Do("SET", key, buf.Bytes())
+	return err
+}
+
+func (c *redisImp) Get(key string, v interface{}) error {
+	if c == nil || c.pool == nil {
+		return c.ErrCacheMiss()
+	}
+
+	value, err := redis.Bytes(c.pool.Get().Do("GET", key))
+	if err != nil {
+		return err
+	}
+
+	return decode(value, v)
+}
+
+func (c *redisImp) ErrCacheMiss() error {
+	return fmt.Errorf("Cache miss")
+}
+
+func encode(buf bytes.Buffer, v interface{}) error {
+	if err := gob.NewEncoder(&buf).Encode(v); err != nil {
+		return err
+	}
+	return nil
+}
+
+func decode(value []byte, v interface{}) error {
+	return gob.NewDecoder(bytes.NewBuffer(value)).Decode(v)
 }
