@@ -175,6 +175,12 @@ func TestCommandHandler(t *testing.T) {
 		if r.Body == "allocate-memory-error" {
 			return &response{Events: []Event{{"cannot allocate memory", "stderr", 0}}}, nil
 		}
+		if r.Body == "oom-compile-error" {
+			return &response{Errors: "out of memory"}, nil
+		}
+		if r.Body == "allocate-memory-compile-error" {
+			return &response{Errors: "cannot allocate memory"}, nil
+		}
 		resp := &response{Events: []Event{{r.Body, "stdout", 0}}}
 		return resp, nil
 	})
@@ -204,6 +210,10 @@ func TestCommandHandler(t *testing.T) {
 			[]byte(`{"Body":"oom-error"}`), nil},
 		{"Cannot allocate memory error in response body event message", http.MethodPost, http.StatusInternalServerError,
 			[]byte(`{"Body":"allocate-memory-error"}`), nil},
+		{"Out of memory error in response errors", http.MethodPost, http.StatusInternalServerError,
+			[]byte(`{"Body":"oom-compile-error"}`), nil},
+		{"Cannot allocate memory error in response errors", http.MethodPost, http.StatusInternalServerError,
+			[]byte(`{"Body":"allocate-memory-compile-error"}`), nil},
 	}
 
 	for _, tc := range testCases {
