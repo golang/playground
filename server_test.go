@@ -192,12 +192,12 @@ func TestCommandHandler(t *testing.T) {
 		{"Failed cmdFunc", http.MethodPost, http.StatusInternalServerError, []byte(`{"Body":"fail"}`), nil},
 		{"Standard flow", http.MethodPost, http.StatusOK,
 			[]byte(`{"Body":"ok"}`),
-			[]byte(`{"Errors":"","Events":[{"Message":"ok","Kind":"stdout","Delay":0}]}
+			[]byte(`{"Errors":"","Events":[{"Message":"ok","Kind":"stdout","Delay":0}],"Status":0,"IsTest":false,"TestsFailed":0}
 `),
 		},
 		{"Errors in response", http.MethodPost, http.StatusOK,
 			[]byte(`{"Body":"error"}`),
-			[]byte(`{"Errors":"errors","Events":null}
+			[]byte(`{"Errors":"errors","Events":null,"Status":0,"IsTest":false,"TestsFailed":0}
 `),
 		},
 		{"Out of memory error in response body event message", http.MethodPost, http.StatusInternalServerError,
