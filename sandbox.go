@@ -4,7 +4,6 @@
 
 // TODO(andybons): add logging
 // TODO(andybons): restrict memory use
-// TODO(andybons): send exit code to user
 
 package main
 
