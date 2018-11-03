@@ -3,11 +3,12 @@ runtime: custom
 env: flex
 
 resources:
-  cpu: 2
-  memory_gb: 2
+  cpu: 1
+  memory_gb: 1
 
 automatic_scaling:
-  min_num_instances: 5
+  min_num_instances: 1
+  max_instances: 1
 
 env_variables:
   MEMCACHED_ADDR: 'memcached:11211'
