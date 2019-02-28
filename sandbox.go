@@ -323,8 +323,9 @@ func compileAndRun(req *request) (*response, error) {
 	}
 
 	exe := filepath.Join(tmpDir, "a.out")
+	goCache := filepath.Join(tmpDir, "gocache")
 	cmd := exec.Command("go", "build", "-o", exe, in)
-	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOPATH=" + os.Getenv("GOPATH"), "HOME=" + os.Getenv("HOME")}
+	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOPATH=" + os.Getenv("GOPATH"), "GOCACHE=" + goCache}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// Return compile errors to the user.

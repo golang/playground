@@ -222,10 +222,6 @@ RUN apt-get update && apt-get install -y git ca-certificates --no-install-recomm
 COPY --from=builder /usr/local/go /usr/local/go
 COPY --from=builder /tmp/sel_ldr_x86_64 /usr/local/bin
 
-# For implicit GOCACHE (issues 29243 and 29251), set HOME:
-RUN mkdir -p /home/gopher
-ENV HOME /home/gopher
-
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 
