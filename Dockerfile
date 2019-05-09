@@ -1,15 +1,21 @@
 # Copyright 2017 The Go Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
-FROM debian:stretch as builder
+
+FROM debian:stretch AS nacl
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl bzip2 ca-certificates
+
+RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/trunk.544461/naclsdk_linux.tar.bz2 | tar -xj -C /tmp --strip-components=2 pepper_67/tools/sel_ldr_x86_64
+
+FROM debian:stretch AS build
 LABEL maintainer "golang-dev@googlegroups.com"
 
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV CGO_ENABLED=0
-ENV GO_VERSION 1.12
-ENV BUILD_DEPS 'curl bzip2 git gcc patch libc6-dev ca-certificates'
+ENV GO_VERSION 1.12.5
+ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
 
 # Fake time
 COPY enable-fake-time.patch /usr/local/playground/
@@ -17,8 +23,6 @@ COPY enable-fake-time.patch /usr/local/playground/
 COPY fake_fs.lst /usr/local/playground/
 
 RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
-
-RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/trunk.544461/naclsdk_linux.tar.bz2 | tar -xj -C /tmp --strip-components=2 pepper_67/tools/sel_ldr_x86_64
 
 # Get the Go binary.
 RUN curl -sSL https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz -o /tmp/go.tar.gz
@@ -33,194 +37,28 @@ RUN cd /usr/local/go && go run misc/nacl/mkzip.go -p syscall /usr/local/playgrou
 # Re-build the Go toolchain.
 RUN cd /usr/local/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean
 
-# BEGIN deps (run `make update-deps` to update)
+RUN mkdir /gocache
+ENV GOCACHE /gocache
+ENV GO111MODULE on
 
-# Repo cloud.google.com/go at e2c125c (2019-02-22)
-ENV REV=e2c125ceac8b663cfcf4610477d4d67827377cb7
-RUN go get -d cloud.google.com/go/compute/metadata `#and 6 other pkgs` &&\
-    (cd /go/src/cloud.google.com/go && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo github.com/bradfitz/gomemcache at bc664df (2018-07-10)
-ENV REV=bc664df9673713a0ccf26e3b55a673ec7301088b
-RUN go get -d github.com/bradfitz/gomemcache/memcache &&\
-    (cd /go/src/github.com/bradfitz/gomemcache && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo github.com/golang/protobuf at c823c79 (2019-02-05)
-ENV REV=c823c79ea1570fb5ff454033735a8e68575d1d0f
-RUN go get -d github.com/golang/protobuf/proto `#and 8 other pkgs` &&\
-    (cd /go/src/github.com/golang/protobuf && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo github.com/googleapis/gax-go at ddfab93 (2019-01-11)
-ENV REV=ddfab93c3faef4935403ac75a7c11f0e731dc181
-RUN go get -d github.com/googleapis/gax-go/v2 &&\
-    (cd /go/src/github.com/googleapis/gax-go && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo github.com/hashicorp/golang-lru at 20f1fb7 (2018-08-29)
-ENV REV=20f1fb78b0740ba8c3cb143a61e86ba5c8669768
-RUN go get -d github.com/hashicorp/golang-lru/simplelru &&\
-    (cd /go/src/github.com/hashicorp/golang-lru && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo go.opencensus.io at beafb2a (2019-02-22)
-ENV REV=beafb2a85a579a4918ba259877a1625e9213a263
-RUN go get -d go.opencensus.io `#and 13 other pkgs` &&\
-    (cd /go/src/go.opencensus.io && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo golang.org/x/net at fe579d4 (2019-02-25)
-ENV REV=fe579d43d83210096a79b46dcca0e3721058393a
-RUN go get -d golang.org/x/net/context `#and 8 other pkgs` &&\
-    (cd /go/src/golang.org/x/net && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo golang.org/x/oauth2 at 9b3c759 (2019-02-20)
-ENV REV=9b3c75971fc92dd27c6436a37c05c831498658f1
-RUN go get -d golang.org/x/oauth2 `#and 5 other pkgs` &&\
-    (cd /go/src/golang.org/x/oauth2 && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo golang.org/x/sys at cc5685c (2019-02-25)
-ENV REV=cc5685c2db1239775905f3911f0067c0fa74762f
-RUN go get -d golang.org/x/sys/unix &&\
-    (cd /go/src/golang.org/x/sys && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo golang.org/x/text at d14c52b (2019-02-25)
-ENV REV=d14c52b222ee852cdba8b07206ca0c614b389876
-RUN go get -d golang.org/x/text/secure/bidirule `#and 4 other pkgs` &&\
-    (cd /go/src/golang.org/x/text && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo golang.org/x/tools at 2dc4ef2 (2019-02-25)
-ENV REV=2dc4ef2775b8122dd5afe2c18fd6f775e87f89e5
-RUN go get -d golang.org/x/tools/go/ast/astutil `#and 12 other pkgs` &&\
-    (cd /go/src/golang.org/x/tools && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo google.golang.org/api at 8a550ba (2019-02-24)
-ENV REV=8a550ba84cafabe9b2262c41303f31e5a4626318
-RUN go get -d google.golang.org/api/googleapi `#and 6 other pkgs` &&\
-    (cd /go/src/google.golang.org/api && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo google.golang.org/genproto at 082222b (2019-02-19)
-ENV REV=082222b4a5c572e33e82ee9162d1352c7cf38682
-RUN go get -d google.golang.org/genproto/googleapis/api/annotations `#and 5 other pkgs` &&\
-    (cd /go/src/google.golang.org/genproto && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Repo google.golang.org/grpc at 40cb561 (2019-02-25)
-ENV REV=40cb5618f475e7b9d61aa7920ae4b04ef9bbaf89
-RUN go get -d google.golang.org/grpc `#and 32 other pkgs` &&\
-    (cd /go/src/google.golang.org/grpc && (git cat-file -t $REV 2>/dev/null || git fetch -q origin $REV) && git reset --hard $REV)
-
-# Optimization to speed up iterative development, not necessary for correctness:
-RUN go install cloud.google.com/go/compute/metadata \
-	cloud.google.com/go/datastore \
-	cloud.google.com/go/internal \
-	cloud.google.com/go/internal/fields \
-	cloud.google.com/go/internal/trace \
-	cloud.google.com/go/internal/version \
-	github.com/bradfitz/gomemcache/memcache \
-	github.com/golang/protobuf/proto \
-	github.com/golang/protobuf/protoc-gen-go/descriptor \
-	github.com/golang/protobuf/ptypes \
-	github.com/golang/protobuf/ptypes/any \
-	github.com/golang/protobuf/ptypes/duration \
-	github.com/golang/protobuf/ptypes/struct \
-	github.com/golang/protobuf/ptypes/timestamp \
-	github.com/golang/protobuf/ptypes/wrappers \
-	github.com/googleapis/gax-go/v2 \
-	github.com/hashicorp/golang-lru/simplelru \
-	go.opencensus.io \
-	go.opencensus.io/exemplar \
-	go.opencensus.io/internal \
-	go.opencensus.io/internal/tagencoding \
-	go.opencensus.io/plugin/ocgrpc \
-	go.opencensus.io/stats \
-	go.opencensus.io/stats/internal \
-	go.opencensus.io/stats/view \
-	go.opencensus.io/tag \
-	go.opencensus.io/trace \
-	go.opencensus.io/trace/internal \
-	go.opencensus.io/trace/propagation \
-	go.opencensus.io/trace/tracestate \
-	golang.org/x/net/context \
-	golang.org/x/net/context/ctxhttp \
-	golang.org/x/net/http/httpguts \
-	golang.org/x/net/http2 \
-	golang.org/x/net/http2/hpack \
-	golang.org/x/net/idna \
-	golang.org/x/net/internal/timeseries \
-	golang.org/x/net/trace \
-	golang.org/x/oauth2 \
-	golang.org/x/oauth2/google \
-	golang.org/x/oauth2/internal \
-	golang.org/x/oauth2/jws \
-	golang.org/x/oauth2/jwt \
-	golang.org/x/sys/unix \
-	golang.org/x/text/secure/bidirule \
-	golang.org/x/text/transform \
-	golang.org/x/text/unicode/bidi \
-	golang.org/x/text/unicode/norm \
-	golang.org/x/tools/go/ast/astutil \
-	golang.org/x/tools/go/gcexportdata \
-	golang.org/x/tools/go/internal/cgo \
-	golang.org/x/tools/go/internal/gcimporter \
-	golang.org/x/tools/go/internal/packagesdriver \
-	golang.org/x/tools/go/packages \
-	golang.org/x/tools/godoc/static \
-	golang.org/x/tools/imports \
-	golang.org/x/tools/internal/fastwalk \
-	golang.org/x/tools/internal/gopathwalk \
-	golang.org/x/tools/internal/module \
-	golang.org/x/tools/internal/semver \
-	google.golang.org/api/googleapi \
-	google.golang.org/api/googleapi/internal/uritemplates \
-	google.golang.org/api/internal \
-	google.golang.org/api/iterator \
-	google.golang.org/api/option \
-	google.golang.org/api/transport/grpc \
-	google.golang.org/genproto/googleapis/api/annotations \
-	google.golang.org/genproto/googleapis/datastore/v1 \
-	google.golang.org/genproto/googleapis/rpc/code \
-	google.golang.org/genproto/googleapis/rpc/status \
-	google.golang.org/genproto/googleapis/type/latlng \
-	google.golang.org/grpc \
-	google.golang.org/grpc/balancer \
-	google.golang.org/grpc/balancer/base \
-	google.golang.org/grpc/balancer/roundrobin \
-	google.golang.org/grpc/binarylog/grpc_binarylog_v1 \
-	google.golang.org/grpc/codes \
-	google.golang.org/grpc/connectivity \
-	google.golang.org/grpc/credentials \
-	google.golang.org/grpc/credentials/internal \
-	google.golang.org/grpc/credentials/oauth \
-	google.golang.org/grpc/encoding \
-	google.golang.org/grpc/encoding/proto \
-	google.golang.org/grpc/grpclog \
-	google.golang.org/grpc/internal \
-	google.golang.org/grpc/internal/backoff \
-	google.golang.org/grpc/internal/binarylog \
-	google.golang.org/grpc/internal/channelz \
-	google.golang.org/grpc/internal/envconfig \
-	google.golang.org/grpc/internal/grpcrand \
-	google.golang.org/grpc/internal/grpcsync \
-	google.golang.org/grpc/internal/syscall \
-	google.golang.org/grpc/internal/transport \
-	google.golang.org/grpc/keepalive \
-	google.golang.org/grpc/metadata \
-	google.golang.org/grpc/naming \
-	google.golang.org/grpc/peer \
-	google.golang.org/grpc/resolver \
-	google.golang.org/grpc/resolver/dns \
-	google.golang.org/grpc/resolver/passthrough \
-	google.golang.org/grpc/stats \
-	google.golang.org/grpc/status \
-	google.golang.org/grpc/tap
-# END deps
+# Pre-build some packages to speed final install later.
+RUN go install cloud.google.com/go/compute/metadata
+RUN go install cloud.google.com/go/datastore
+RUN go install github.com/bradfitz/gomemcache/memcache
+RUN go install golang.org/x/tools/godoc/static
+RUN go install golang.org/x/tools/imports
 
 # Add and compile playground daemon
 COPY . /go/src/playground/
-RUN go install playground
+WORKDIR /go/src/playground
+RUN go install
 
 FROM debian:stretch
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
-COPY --from=builder /usr/local/go /usr/local/go
-COPY --from=builder /tmp/sel_ldr_x86_64 /usr/local/bin
+COPY --from=build /usr/local/go /usr/local/go
+COPY --from=nacl /tmp/sel_ldr_x86_64 /usr/local/bin
 
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
@@ -247,13 +85,16 @@ RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
 
 RUN mkdir /app
 
-COPY --from=builder /go/bin/playground /app
+COPY --from=build /go/bin/playground /app
 COPY edit.html /app
 COPY static /app/static
 WORKDIR /app
 
 # Run tests
 RUN /app/playground test
+
+# Whether we allow third-party imports via proxy.golang.org:
+ENV ALLOW_PLAY_MODULE_DOWNLOADS false
 
 EXPOSE 8080
 ENTRYPOINT ["/app/playground"]

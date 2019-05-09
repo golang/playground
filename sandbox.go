@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/template"
@@ -325,7 +326,23 @@ func compileAndRun(req *request) (*response, error) {
 	exe := filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
 	cmd := exec.Command("go", "build", "-o", exe, in)
-	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOPATH=" + os.Getenv("GOPATH"), "GOCACHE=" + goCache}
+	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOCACHE=" + goCache}
+	if allowModuleDownloads(src) {
+		// Create a GOPATH just for modules to be downloaded
+		// into GOPATH/pkg/mod.
+		gopath, err := ioutil.TempDir("", "gopath")
+		if err != nil {
+			return nil, fmt.Errorf("error creating temp directory: %v", err)
+		}
+		defer os.RemoveAll(gopath)
+		cmd.Env = append(cmd.Env, "GO111MODULE=on", "GOPROXY=https://proxy.golang.org", "GOPATH="+gopath)
+	} else {
+
+		cmd.Env = append(cmd.Env,
+			"GO111MODULE=off",             // in case it becomes on by default later
+			"GOPATH="+os.Getenv("GOPATH"), // contains old code.google.com/p/go-tour, etc
+		)
+	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// Return compile errors to the user.
@@ -380,6 +397,21 @@ func compileAndRun(req *request) (*response, error) {
 	return &response{Events: events, Status: status, IsTest: testParam != "", TestsFailed: fails}, nil
 }
 
+// allowModuleDownloads reports whether the code snippet in src should be allowed
+// to download modules.
+func allowModuleDownloads(src []byte) bool {
+	if bytes.Contains(src, []byte(`"code.google.com/p/go-tour/`)) {
+		// This domain doesn't exist anymore but we want old snippets using
+		// these packages to still run, so the Dockerfile adds these packages
+		// at this name in $GOPATH. Any snippets using this old name wouldn't
+		// have expected (or been able to use) third-party packages anyway,
+		// so disabling modules and proxy.golang.org fetches is acceptable.
+		return false
+	}
+	v, _ := strconv.ParseBool(os.Getenv("ALLOW_PLAY_MODULE_DOWNLOADS"))
+	return v
+}
+
 func (s *server) healthCheck() error {
 	resp, err := compileAndRun(&request{Body: healthProg})
 	if err != nil {
@@ -406,6 +438,11 @@ func (s *server) test() {
 	if err := s.healthCheck(); err != nil {
 		stdlog.Fatal(err)
 	}
+
+	// Enable module downloads for testing:
+	defer func(old string) { os.Setenv("ALLOW_PLAY_MODULE_DOWNLOADS", old) }(os.Getenv("ALLOW_PLAY_MODULE_DOWNLOADS"))
+	os.Setenv("ALLOW_PLAY_MODULE_DOWNLOADS", "true")
+
 	for _, t := range tests {
 		resp, err := compileAndRun(&request{Body: t.prog})
 		if err != nil {
@@ -733,4 +770,11 @@ func main() {
 		{"B\n", "stderr", time.Second - 2*time.Nanosecond},
 		{"A\n", "stdout", time.Second},
 	}},
+
+	// Test third-party imports:
+	{prog: `
+package main
+import ("fmt"; "github.com/bradfitz/iter")
+func main() { for i := range iter.N(5) { fmt.Println(i) } }
+`, want: "0\n1\n2\n3\n4\n"},
 }
