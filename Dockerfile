@@ -1,7 +1,7 @@
 # Copyright 2017 The Go Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
-FROM debian:jessie as builder
+FROM debian:stretch as builder
 LABEL maintainer "golang-dev@googlegroups.com"
 
 ENV GOPATH /go
@@ -215,7 +215,7 @@ RUN go install cloud.google.com/go/compute/metadata \
 COPY . /go/src/playground/
 RUN go install playground
 
-FROM debian:jessie
+FROM debian:stretch
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
