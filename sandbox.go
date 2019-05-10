@@ -19,12 +19,10 @@ import (
 	"go/token"
 	"io"
 	"io/ioutil"
-	stdlog "log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -38,7 +36,8 @@ import (
 const (
 	maxRunTime = 2 * time.Second
 
-	// progName is the program name in compiler errors
+	// progName is the implicit program name written to the temp
+	// dir and used in compiler and vet errors.
 	progName = "prog.go"
 )
 
@@ -47,7 +46,8 @@ const (
 var nonCachingErrors = []string{"out of memory", "cannot allocate memory"}
 
 type request struct {
-	Body string
+	Body    string
+	WithVet bool // whether client supports vet response in a /compile request (Issue 31970)
 }
 
 type response struct {
@@ -56,6 +56,14 @@ type response struct {
 	Status      int
 	IsTest      bool
 	TestsFailed int
+
+	// VetErrors, if non-empty, contains any vet errors. It is
+	// only populated if request.WithVet was true.
+	VetErrors string `json:",omitempty"`
+	// VetOK reports whether vet ran & passsed. It is only
+	// populated if request.WithVet was true. Only one of
+	// VetErrors or VetOK can be non-zero.
+	VetOK bool `json:",omitempty"`
 }
 
 // commandHandler returns an http.HandlerFunc.
@@ -77,6 +85,7 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(*request) (*res
 		// are updated to always send JSON, this check is in place.
 		if b := r.FormValue("body"); b != "" {
 			req.Body = b
+			req.WithVet, _ = strconv.ParseBool(r.FormValue("withVet"))
 		} else if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			s.log.Errorf("error decoding request: %v", err)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -182,7 +191,7 @@ func isTest(name, prefix string) bool {
 func getTestProg(src []byte) []byte {
 	fset := token.NewFileSet()
 	// Early bail for most cases.
-	f, err := parser.ParseFile(fset, "main.go", src, parser.ImportsOnly)
+	f, err := parser.ParseFile(fset, progName, src, parser.ImportsOnly)
 	if err != nil || f.Name.Name != "main" {
 		return nil
 	}
@@ -199,7 +208,7 @@ func getTestProg(src []byte) []byte {
 	}
 
 	// Parse everything and extract test names.
-	f, err = parser.ParseFile(fset, "main.go", src, parser.ParseComments)
+	f, err = parser.ParseFile(fset, progName, src, parser.ParseComments)
 	if err != nil {
 		return nil
 	}
@@ -303,7 +312,7 @@ func compileAndRun(req *request) (*response, error) {
 	defer os.RemoveAll(tmpDir)
 
 	src := []byte(req.Body)
-	in := filepath.Join(tmpDir, "main.go")
+	in := filepath.Join(tmpDir, progName)
 	if err := ioutil.WriteFile(in, src, 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
@@ -326,29 +335,29 @@ func compileAndRun(req *request) (*response, error) {
 	exe := filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
 	cmd := exec.Command("go", "build", "-o", exe, in)
+	var goPath string
 	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOCACHE=" + goCache}
-	if allowModuleDownloads(src) {
+	useModules := allowModuleDownloads(src)
+	if useModules {
 		// Create a GOPATH just for modules to be downloaded
 		// into GOPATH/pkg/mod.
-		gopath, err := ioutil.TempDir("", "gopath")
+		goPath, err = ioutil.TempDir("", "gopath")
 		if err != nil {
 			return nil, fmt.Errorf("error creating temp directory: %v", err)
 		}
-		defer os.RemoveAll(gopath)
-		cmd.Env = append(cmd.Env, "GO111MODULE=on", "GOPROXY=https://proxy.golang.org", "GOPATH="+gopath)
+		defer os.RemoveAll(goPath)
+		cmd.Env = append(cmd.Env, "GO111MODULE=on", "GOPROXY=https://proxy.golang.org")
 	} else {
-
-		cmd.Env = append(cmd.Env,
-			"GO111MODULE=off",             // in case it becomes on by default later
-			"GOPATH="+os.Getenv("GOPATH"), // contains old code.google.com/p/go-tour, etc
-		)
+		goPath = os.Getenv("GOPATH")                 // contains old code.google.com/p/go-tour, etc
+		cmd.Env = append(cmd.Env, "GO111MODULE=off") // in case it becomes on by default later
 	}
+	cmd.Env = append(cmd.Env, "GOPATH="+goPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// Return compile errors to the user.
 
 			// Rewrite compiler errors to refer to progName
-			// instead of '/tmp/sandbox1234/main.go'.
+			// instead of '/tmp/sandbox1234/prog.go'.
 			errs := strings.Replace(string(out), in, progName, -1)
 
 			// "go build", invoked with a file name, puts this odd
@@ -394,7 +403,21 @@ func compileAndRun(req *request) (*response, error) {
 			fails += strings.Count(e.Message, failedTestPattern)
 		}
 	}
-	return &response{Events: events, Status: status, IsTest: testParam != "", TestsFailed: fails}, nil
+	var vetOut string
+	if req.WithVet {
+		vetOut, err = vetCheckInDir(tmpDir, goPath, useModules)
+		if err != nil {
+			return nil, fmt.Errorf("running vet: %v", err)
+		}
+	}
+	return &response{
+		Events:      events,
+		Status:      status,
+		IsTest:      testParam != "",
+		TestsFailed: fails,
+		VetErrors:   vetOut,
+		VetOK:       req.WithVet && vetOut == "",
+	}, nil
 }
 
 // allowModuleDownloads reports whether the code snippet in src should be allowed
@@ -433,348 +456,3 @@ import "fmt"
 
 func main() { fmt.Print("ok") }
 `
-
-func (s *server) test() {
-	if err := s.healthCheck(); err != nil {
-		stdlog.Fatal(err)
-	}
-
-	// Enable module downloads for testing:
-	defer func(old string) { os.Setenv("ALLOW_PLAY_MODULE_DOWNLOADS", old) }(os.Getenv("ALLOW_PLAY_MODULE_DOWNLOADS"))
-	os.Setenv("ALLOW_PLAY_MODULE_DOWNLOADS", "true")
-
-	for _, t := range tests {
-		resp, err := compileAndRun(&request{Body: t.prog})
-		if err != nil {
-			stdlog.Fatal(err)
-		}
-		if t.wantEvents != nil {
-			if !reflect.DeepEqual(resp.Events, t.wantEvents) {
-				stdlog.Fatalf("resp.Events = %q, want %q", resp.Events, t.wantEvents)
-			}
-			continue
-		}
-		if t.errors != "" {
-			if resp.Errors != t.errors {
-				stdlog.Fatalf("resp.Errors = %q, want %q", resp.Errors, t.errors)
-			}
-			continue
-		}
-		if resp.Errors != "" {
-			stdlog.Fatal(resp.Errors)
-		}
-		if len(resp.Events) == 0 {
-			stdlog.Fatalf("unexpected output: %q, want %q", "", t.want)
-		}
-		var b strings.Builder
-		for _, e := range resp.Events {
-			b.WriteString(e.Message)
-		}
-		if !strings.Contains(b.String(), t.want) {
-			stdlog.Fatalf("unexpected output: %q, want %q", b.String(), t.want)
-		}
-	}
-	fmt.Println("OK")
-}
-
-var tests = []struct {
-	prog, want, errors string
-	wantEvents         []Event
-}{
-	{prog: `
-package main
-
-import "time"
-
-func main() {
-	loc, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		panic(err.Error())
-	}
-	println(loc.String())
-}
-`, want: "America/New_York"},
-
-	{prog: `
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func main() {
-	fmt.Println(time.Now())
-}
-`, want: "2009-11-10 23:00:00 +0000 UTC"},
-
-	{prog: `
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func main() {
-	t1 := time.Tick(time.Second * 3)
-	t2 := time.Tick(time.Second * 7)
-	t3 := time.Tick(time.Second * 11)
-	end := time.After(time.Second * 19)
-	want := "112131211"
-	var got []byte
-	for {
-		var c byte
-		select {
-		case <-t1:
-			c = '1'
-		case <-t2:
-			c = '2'
-		case <-t3:
-			c = '3'
-		case <-end:
-			if g := string(got); g != want {
-				fmt.Printf("got %q, want %q\n", g, want)
-			} else {
-				fmt.Println("timers fired as expected")
-			}
-			return
-		}
-		got = append(got, c)
-	}
-}
-`, want: "timers fired as expected"},
-
-	{prog: `
-package main
-
-import (
-	"code.google.com/p/go-tour/pic"
-	"code.google.com/p/go-tour/reader"
-	"code.google.com/p/go-tour/tree"
-	"code.google.com/p/go-tour/wc"
-)
-
-var (
-	_ = pic.Show
-	_ = reader.Validate
-	_ = tree.New
-	_ = wc.Test
-)
-
-func main() {
-	println("ok")
-}
-`, want: "ok"},
-	{prog: `
-package test
-
-func main() {
-	println("test")
-}
-`, want: "", errors: "package name must be main"},
-	{prog: `
-package main
-
-import (
-	"fmt"
-	"os"
-	"path/filepath"
-)
-
-func main() {
-	filepath.Walk("/", func(path string, info os.FileInfo, err error) error {
-		fmt.Println(path)
-		return nil
-	})
-}
-`, want: `/
-/dev
-/dev/null
-/dev/random
-/dev/urandom
-/dev/zero
-/etc
-/etc/group
-/etc/hosts
-/etc/passwd
-/etc/resolv.conf
-/tmp
-/usr
-/usr/local
-/usr/local/go
-/usr/local/go/lib
-/usr/local/go/lib/time
-/usr/local/go/lib/time/zoneinfo.zip`},
-	{prog: `
-package main
-
-import "testing"
-
-func TestSanity(t *testing.T) {
-	if 1+1 != 2 {
-		t.Error("uhh...")
-	}
-}
-`, want: `=== RUN   TestSanity
---- PASS: TestSanity (0.00s)
-PASS`},
-
-	{prog: `
-package main
-
-func TestSanity(t *testing.T) {
-	t.Error("uhh...")
-}
-
-func ExampleNotExecuted() {
-	// Output: it should not run
-}
-`, want: "", errors: "prog.go:4:20: undefined: testing\n"},
-
-	{prog: `
-package main
-
-import (
-	"fmt"
-	"testing"
-)
-
-func TestSanity(t *testing.T) {
-	t.Error("uhh...")
-}
-
-func main() {
-	fmt.Println("test")
-}
-`, want: "test"},
-
-	{prog: `
-package main//comment
-
-import "fmt"
-
-func ExampleOutput() {
-	fmt.Println("The output")
-	// Output: The output
-}
-`, want: `=== RUN   ExampleOutput
---- PASS: ExampleOutput (0.00s)
-PASS`},
-
-	{prog: `
-package main//comment
-
-import "fmt"
-
-func ExampleUnorderedOutput() {
-	fmt.Println("2")
-	fmt.Println("1")
-	fmt.Println("3")
-	// Unordered output: 3
-	// 2
-	// 1
-}
-`, want: `=== RUN   ExampleUnorderedOutput
---- PASS: ExampleUnorderedOutput (0.00s)
-PASS`},
-
-	{prog: `
-package main
-
-import "fmt"
-
-func ExampleEmptyOutput() {
-	// Output:
-}
-
-func ExampleEmptyOutputFail() {
-	fmt.Println("1")
-	// Output:
-}
-`, want: `=== RUN   ExampleEmptyOutput
---- PASS: ExampleEmptyOutput (0.00s)
-=== RUN   ExampleEmptyOutputFail
---- FAIL: ExampleEmptyOutputFail (0.00s)
-got:
-1
-want:
-
-FAIL`},
-
-	// Run program without executing this example function.
-	{prog: `
-package main
-
-func ExampleNoOutput() {
-	panic(1)
-}
-`, want: `testing: warning: no tests to run
-PASS`},
-
-	{prog: `
-package main
-
-import "fmt"
-
-func ExampleShouldNotRun() {
-	fmt.Println("The output")
-	// Output: The output
-}
-
-func main() {
-	fmt.Println("Main")
-}
-`, want: "Main"},
-
-	{prog: `
-package main
-
-import (
-	"fmt"
-	"os"
-)
-
-func main() {
-	fmt.Fprintln(os.Stdout, "A")
-	fmt.Fprintln(os.Stderr, "B")
-	fmt.Fprintln(os.Stdout, "A")
-	fmt.Fprintln(os.Stdout, "A")
-}
-`, want: "A\nB\nA\nA\n"},
-
-	// Integration test for runtime.write fake timestamps.
-	{prog: `
-package main
-
-import (
-	"fmt"
-	"os"
-	"time"
-)
-
-func main() {
-	fmt.Fprintln(os.Stdout, "A")
-	fmt.Fprintln(os.Stderr, "B")
-	fmt.Fprintln(os.Stdout, "A")
-	fmt.Fprintln(os.Stdout, "A")
-	time.Sleep(time.Second)
-	fmt.Fprintln(os.Stderr, "B")
-	time.Sleep(time.Second)
-	fmt.Fprintln(os.Stdout, "A")
-}
-`, wantEvents: []Event{
-		{"A\n", "stdout", 0},
-		{"B\n", "stderr", time.Nanosecond},
-		{"A\nA\n", "stdout", time.Nanosecond},
-		{"B\n", "stderr", time.Second - 2*time.Nanosecond},
-		{"A\n", "stdout", time.Second},
-	}},
-
-	// Test third-party imports:
-	{prog: `
-package main
-import ("fmt"; "github.com/bradfitz/iter")
-func main() { for i := range iter.N(5) { fmt.Println(i) } }
-`, want: "0\n1\n2\n3\n4\n"},
-}

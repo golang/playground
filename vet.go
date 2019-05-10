@@ -16,6 +16,11 @@ import (
 // vetCheck runs the "vet" tool on the source code in req.Body.
 // In case of no errors it returns an empty, non-nil *response.
 // Otherwise &response.Errors contains found errors.
+//
+// Deprecated: this is the handler for the legacy /vet endpoint; use
+// the /compile (compileAndRun) handler instead with the WithVet
+// boolean set. This code path doesn't support modules and only exists
+// as a temporary compatiblity bridge to older javascript clients.
 func vetCheck(req *request) (*response, error) {
 	tmpDir, err := ioutil.TempDir("", "vet")
 	if err != nil {
@@ -23,23 +28,44 @@ func vetCheck(req *request) (*response, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	in := filepath.Join(tmpDir, "main.go")
+	in := filepath.Join(tmpDir, progName)
 	if err := ioutil.WriteFile(in, []byte(req.Body), 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
+	const useModules = false // legacy handler; no modules (see func comment)
+	vetOutput, err := vetCheckInDir(tmpDir, os.Getenv("GOPATH"), useModules)
+	if err != nil {
+		// This is about errors running vet, not vet returning output.
+		return nil, err
+	}
+	return &response{Errors: vetOutput}, nil
+}
 
+// vetCheckInDir runs go vet in the provided directory, using the
+// provided GOPATH value, and whether modules are enabled. The
+// returned error is only about whether go vet was able to run, not
+// whether vet reported problem. The returned value is ("", nil) if
+// vet successfully found nothing, and (non-empty, nil) if vet ran and
+// found issues.
+func vetCheckInDir(dir, goPath string, modules bool) (output string, execErr error) {
+	in := filepath.Join(dir, progName)
 	cmd := exec.Command("go", "vet", in)
 	// Linux go binary is not built with CGO_ENABLED=0.
 	// Prevent vet to compile packages in cgo mode.
 	// See #26307.
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOPATH="+goPath)
+	if modules {
+		cmd.Env = append(cmd.Env,
+			"GO111MODULE=on",
+			"GOPROXY=https://proxy.golang.org",
+		)
+	}
 	out, err := cmd.CombinedOutput()
 	if err == nil {
-		return &response{}, nil
+		return "", nil
 	}
-
 	if _, ok := err.(*exec.ExitError); !ok {
-		return nil, fmt.Errorf("error vetting go source: %v", err)
+		return "", fmt.Errorf("error vetting go source: %v", err)
 	}
 
 	// Rewrite compiler errors to refer to progName
@@ -50,5 +76,5 @@ func vetCheck(req *request) (*response, error) {
 	// message before any compile errors; strip it.
 	errs = strings.Replace(errs, "# command-line-arguments\n", "", 1)
 
-	return &response{Errors: errs}, nil
+	return errs, nil
 }

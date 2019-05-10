@@ -26,10 +26,19 @@ Building the playground Docker container takes more than the default 10 minute t
 gcloud config set app/cloud_build_timeout 1200  # 20 mins
 ```
 
+Alternatively, to avoid Cloud Build and build locally:
+
+```
+make docker
+docker tag playground:latest gcr.io/golang-org/playground:latest
+docker push gcr.io/golang-org/playground:latest
+gcloud --project=golang-org --account=you@google.com app deploy app.yaml --image-url=gcr.io/golang-org/playground:latest
+```
+
 Then:
 
 ```
-gcloud --project=golang-org --account=person@example.com app deploy app.yaml
+gcloud --project=golang-org --account=you@google.com app deploy app.yaml
 ```
 
 # Contributing
