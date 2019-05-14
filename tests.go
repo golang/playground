@@ -57,6 +57,9 @@ func (s *server) test() {
 		if resp.VetErrors != t.wantVetErrors {
 			stdlog.Fatalf("resp.VetErrs = %q, want %q", resp.VetErrors, t.wantVetErrors)
 		}
+		if t.withVet && (resp.VetErrors != "") == resp.VetOK {
+			stdlog.Fatalf("resp.VetErrs & VetOK inconsistent; VetErrs = %q; VetOK = %v", resp.VetErrors, resp.VetOK)
+		}
 		if len(resp.Events) == 0 {
 			stdlog.Fatalf("unexpected output: %q, want %q", "", t.want)
 		}
@@ -238,7 +241,7 @@ func TestSanity(t *testing.T) {
 func ExampleNotExecuted() {
 	// Output: it should not run
 }
-`, want: "", errors: "prog.go:4:20: undefined: testing\n"},
+`, want: "", errors: "./prog.go:4:20: undefined: testing\n"},
 
 	{
 		name: "test_with_import_ignored",
@@ -406,7 +409,7 @@ func main() { for i := range iter.N(5) { fmt.Println(i) } }
 	{
 		name:          "compile_with_vet",
 		withVet:       true,
-		wantVetErrors: "prog.go:5:2: Printf format %v reads arg #1, but call has 0 args\n",
+		wantVetErrors: "./prog.go:5:2: Printf format %v reads arg #1, but call has 0 args\n",
 		prog: `
 package main
 import "fmt"
@@ -431,7 +434,7 @@ func main() {
 	{
 		name:          "compile_modules_with_vet",
 		withVet:       true,
-		wantVetErrors: "prog.go:6:2: Printf format %v reads arg #1, but call has 0 args\n",
+		wantVetErrors: "./prog.go:6:2: Printf format %v reads arg #1, but call has 0 args\n",
 		prog: `
 package main
 import ("fmt"; "github.com/bradfitz/iter")
@@ -439,6 +442,47 @@ func main() {
 	for i := range iter.N(5) { fmt.Println(i) }
 	fmt.Printf("hi %v")
 }
+`,
+	},
+
+	{
+		name: "multi_file_basic",
+		prog: `
+package main
+const foo = "bar"
+
+-- two.go --
+package main
+func main() {
+  println(foo)
+}
+`,
+		wantEvents: []Event{
+			{"bar\n", "stderr", 0},
+		},
+	},
+
+	{
+		name:    "multi_file_use_package",
+		withVet: true,
+		prog: `
+package main
+
+import "play.test/foo"
+
+func main() {
+    foo.Hello()
+}
+
+-- go.mod --
+module play.test
+
+-- foo/foo.go --
+package foo
+
+import "fmt"
+
+func Hello() { fmt.Println("hello world") }
 `,
 	},
 }

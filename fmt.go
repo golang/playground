@@ -20,25 +20,40 @@ type fmtResponse struct {
 }
 
 func handleFmt(w http.ResponseWriter, r *http.Request) {
-	var (
-		in  = []byte(r.FormValue("body"))
-		out []byte
-		err error
-	)
-	if r.FormValue("imports") != "" {
-		out, err = imports.Process(progName, in, nil)
-	} else {
-		out, err = format.Source(in)
-	}
-	var resp fmtResponse
+	w.Header().Set("Content-Type", "application/json")
+
+	fs, err := splitFiles([]byte(r.FormValue("body")))
 	if err != nil {
-		resp.Error = err.Error()
-		// Prefix the error returned by format.Source.
-		if !strings.HasPrefix(resp.Error, progName) {
-			resp.Error = fmt.Sprintf("%v:%v", progName, resp.Error)
-		}
-	} else {
-		resp.Body = string(out)
+		json.NewEncoder(w).Encode(fmtResponse{Error: err.Error()})
+		return
 	}
-	json.NewEncoder(w).Encode(resp)
+
+	fixImports := r.FormValue("imports") != ""
+	for _, f := range fs.files {
+		if !strings.HasSuffix(f, ".go") {
+			continue
+		}
+		var out []byte
+		var err error
+		in := fs.m[f]
+		if fixImports {
+			// TODO: pass options to imports.Process so it
+			// can find symbols in sibling files.
+			out, err = imports.Process(progName, in, nil)
+		} else {
+			out, err = format.Source(in)
+		}
+		if err != nil {
+			errMsg := err.Error()
+			// Prefix the error returned by format.Source.
+			if !strings.HasPrefix(errMsg, f) {
+				errMsg = fmt.Sprintf("%v:%v", f, errMsg)
+			}
+			json.NewEncoder(w).Encode(fmtResponse{Error: errMsg})
+			return
+		}
+		fs.AddFile(f, out)
+	}
+
+	json.NewEncoder(w).Encode(fmtResponse{Body: string(fs.Format())})
 }

@@ -311,33 +311,57 @@ func compileAndRun(req *request) (*response, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	src := []byte(req.Body)
-	in := filepath.Join(tmpDir, progName)
-	if err := ioutil.WriteFile(in, src, 0400); err != nil {
-		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
-	}
-
-	fset := token.NewFileSet()
-
-	f, err := parser.ParseFile(fset, in, nil, parser.PackageClauseOnly)
-	if err == nil && f.Name.Name != "main" {
-		return &response{Errors: "package name must be main"}, nil
+	files, err := splitFiles([]byte(req.Body))
+	if err != nil {
+		return &response{Errors: err.Error()}, nil
 	}
 
 	var testParam string
-	if code := getTestProg(src); code != nil {
-		testParam = "-test.v"
-		if err := ioutil.WriteFile(in, code, 0400); err != nil {
+	var buildPkgArg = "."
+	if files.Num() == 1 && len(files.Data(progName)) > 0 {
+		buildPkgArg = progName
+		src := files.Data(progName)
+		if code := getTestProg(src); code != nil {
+			testParam = "-test.v"
+			files.AddFile(progName, code)
+		}
+	}
+
+	useModules := allowModuleDownloads(files)
+	if !files.Contains("go.mod") && useModules {
+		files.AddFile("go.mod", []byte("module play\n"))
+	}
+
+	for f, src := range files.m {
+		// Before multi-file support we required that the
+		// program be in package main, so continue to do that
+		// for now. But permit anything in subdirectories to have other
+		// packages.
+		if !strings.Contains(f, "/") {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, f, src, parser.PackageClauseOnly)
+			if err == nil && f.Name.Name != "main" {
+				return &response{Errors: "package name must be main"}, nil
+			}
+		}
+
+		in := filepath.Join(tmpDir, f)
+		if strings.Contains(f, "/") {
+			if err := os.MkdirAll(filepath.Dir(in), 0755); err != nil {
+				return nil, err
+			}
+		}
+		if err := ioutil.WriteFile(in, src, 0644); err != nil {
 			return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 		}
 	}
 
 	exe := filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
-	cmd := exec.Command("go", "build", "-o", exe, in)
+	cmd := exec.Command("go", "build", "-o", exe, buildPkgArg)
+	cmd.Dir = tmpDir
 	var goPath string
 	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOCACHE=" + goCache}
-	useModules := allowModuleDownloads(src)
 	if useModules {
 		// Create a GOPATH just for modules to be downloaded
 		// into GOPATH/pkg/mod.
@@ -356,9 +380,8 @@ func compileAndRun(req *request) (*response, error) {
 		if _, ok := err.(*exec.ExitError); ok {
 			// Return compile errors to the user.
 
-			// Rewrite compiler errors to refer to progName
-			// instead of '/tmp/sandbox1234/prog.go'.
-			errs := strings.Replace(string(out), in, progName, -1)
+			// Rewrite compiler errors to strip the tmpDir name.
+			errs := strings.Replace(string(out), tmpDir+"/", "", -1)
 
 			// "go build", invoked with a file name, puts this odd
 			// message before any compile errors; strip it.
@@ -422,8 +445,8 @@ func compileAndRun(req *request) (*response, error) {
 
 // allowModuleDownloads reports whether the code snippet in src should be allowed
 // to download modules.
-func allowModuleDownloads(src []byte) bool {
-	if bytes.Contains(src, []byte(`"code.google.com/p/go-tour/`)) {
+func allowModuleDownloads(files *fileSet) bool {
+	if files.Num() == 1 && bytes.Contains(files.Data(progName), []byte(`"code.google.com/p/go-tour/`)) {
 		// This domain doesn't exist anymore but we want old snippets using
 		// these packages to still run, so the Dockerfile adds these packages
 		// at this name in $GOPATH. Any snippets using this old name wouldn't

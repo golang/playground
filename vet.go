@@ -48,8 +48,11 @@ func vetCheck(req *request) (*response, error) {
 // vet successfully found nothing, and (non-empty, nil) if vet ran and
 // found issues.
 func vetCheckInDir(dir, goPath string, modules bool) (output string, execErr error) {
-	in := filepath.Join(dir, progName)
-	cmd := exec.Command("go", "vet", in)
+	cmd := exec.Command("go", "vet")
+	if !modules {
+		cmd.Args = append(cmd.Args, progName)
+	}
+	cmd.Dir = dir
 	// Linux go binary is not built with CGO_ENABLED=0.
 	// Prevent vet to compile packages in cgo mode.
 	// See #26307.
@@ -70,11 +73,13 @@ func vetCheckInDir(dir, goPath string, modules bool) (output string, execErr err
 
 	// Rewrite compiler errors to refer to progName
 	// instead of '/tmp/sandbox1234/main.go'.
-	errs := strings.Replace(string(out), in, progName, -1)
+	errs := strings.Replace(string(out), dir, "", -1)
 
-	// "go vet", invoked with a file name, puts this odd
-	// message before any compile errors; strip it.
-	errs = strings.Replace(errs, "# command-line-arguments\n", "", 1)
-
+	// Remove vet's package name banner.
+	if strings.HasPrefix(errs, "#") {
+		if nl := strings.Index(errs, "\n"); nl != -1 {
+			errs = errs[nl+1:]
+		}
+	}
 	return errs, nil
 }

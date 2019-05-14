@@ -41,12 +41,17 @@ RUN mkdir /gocache
 ENV GOCACHE /gocache
 ENV GO111MODULE on
 
+COPY go.mod /go/src/playground/go.mod
+COPY go.sum /go/src/playground/go.sum
+WORKDIR /go/src/playground
+
 # Pre-build some packages to speed final install later.
 RUN go install cloud.google.com/go/compute/metadata
 RUN go install cloud.google.com/go/datastore
 RUN go install github.com/bradfitz/gomemcache/memcache
 RUN go install golang.org/x/tools/godoc/static
 RUN go install golang.org/x/tools/imports
+RUN go install github.com/rogpeppe/go-internal/txtar
 
 # Add and compile playground daemon
 COPY . /go/src/playground/
