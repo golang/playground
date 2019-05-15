@@ -47,9 +47,53 @@ func TestHandleFmt(t *testing.T) {
 			want: "package main\n-- two.go --\npackage main\n\nvar X = 5\n",
 		},
 		{
-			name: "only_format_go",
-			body: "    package main\n\n\n-- go.mod --\n   module foo\n",
-			want: "package main\n-- go.mod --\n   module foo\n",
+			name: "single_go.mod_with_header",
+			body: "-- go.mod --\n   module   \"foo\"   ",
+			want: "-- go.mod --\nmodule foo\n",
+		},
+		{
+			name: "multi_go.mod_with_header",
+			body: "-- a/go.mod --\n  module foo\n\n\n-- b/go.mod --\n   module  \"bar\"",
+			want: "-- a/go.mod --\nmodule foo\n-- b/go.mod --\nmodule bar\n",
+		},
+		{
+			name: "only_format_go_and_go.mod",
+			body: "    package   main   \n\n\n" +
+				"-- go.mod --\n   module   foo   \n\n\n" +
+				"-- plain.txt --\n   plain   text   \n\n\n",
+			want: "package main\n-- go.mod --\nmodule foo\n-- plain.txt --\n   plain   text   \n\n\n",
+		},
+		{
+			name:    "error_gofmt",
+			body:    "package 123\n",
+			wantErr: "prog.go:1:9: expected 'IDENT', found 123",
+		},
+		{
+			name:    "error_gofmt_with_header",
+			body:    "-- dir/one.go --\npackage 123\n",
+			wantErr: "dir/one.go:1:9: expected 'IDENT', found 123",
+		},
+		{
+			name:    "error_goimports",
+			body:    "package 123\n",
+			imports: true,
+			wantErr: "prog.go:1:9: expected 'IDENT', found 123",
+		},
+		{
+			name:    "error_goimports_with_header",
+			body:    "-- dir/one.go --\npackage 123\n",
+			imports: true,
+			wantErr: "dir/one.go:1:9: expected 'IDENT', found 123",
+		},
+		{
+			name:    "error_go.mod",
+			body:    "-- go.mod --\n123\n",
+			wantErr: "go.mod:1: unknown directive: 123",
+		},
+		{
+			name:    "error_go.mod_with_header",
+			body:    "-- dir/go.mod --\n123\n",
+			wantErr: "dir/go.mod:1: unknown directive: 123",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

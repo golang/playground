@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"go/format"
 	"net/http"
-	"strings"
+	"path"
 
+	"github.com/rogpeppe/go-internal/modfile"
 	"golang.org/x/tools/imports"
 )
 
@@ -30,30 +31,46 @@ func handleFmt(w http.ResponseWriter, r *http.Request) {
 
 	fixImports := r.FormValue("imports") != ""
 	for _, f := range fs.files {
-		if !strings.HasSuffix(f, ".go") {
-			continue
-		}
-		var out []byte
-		var err error
-		in := fs.m[f]
-		if fixImports {
-			// TODO: pass options to imports.Process so it
-			// can find symbols in sibling files.
-			out, err = imports.Process(progName, in, nil)
-		} else {
-			out, err = format.Source(in)
-		}
-		if err != nil {
-			errMsg := err.Error()
-			// Prefix the error returned by format.Source.
-			if !strings.HasPrefix(errMsg, f) {
-				errMsg = fmt.Sprintf("%v:%v", f, errMsg)
+		switch {
+		case path.Ext(f) == ".go":
+			var out []byte
+			var err error
+			in := fs.Data(f)
+			if fixImports {
+				// TODO: pass options to imports.Process so it
+				// can find symbols in sibling files.
+				out, err = imports.Process(f, in, nil)
+			} else {
+				out, err = format.Source(in)
 			}
-			json.NewEncoder(w).Encode(fmtResponse{Error: errMsg})
-			return
+			if err != nil {
+				errMsg := err.Error()
+				if !fixImports {
+					// Unlike imports.Process, format.Source does not prefix
+					// the error with the file path. So, do it ourselves here.
+					errMsg = fmt.Sprintf("%v:%v", f, errMsg)
+				}
+				json.NewEncoder(w).Encode(fmtResponse{Error: errMsg})
+				return
+			}
+			fs.AddFile(f, out)
+		case path.Base(f) == "go.mod":
+			out, err := formatGoMod(f, fs.Data(f))
+			if err != nil {
+				json.NewEncoder(w).Encode(fmtResponse{Error: err.Error()})
+				return
+			}
+			fs.AddFile(f, out)
 		}
-		fs.AddFile(f, out)
 	}
 
 	json.NewEncoder(w).Encode(fmtResponse{Body: string(fs.Format())})
+}
+
+func formatGoMod(file string, data []byte) ([]byte, error) {
+	f, err := modfile.Parse(file, data, nil)
+	if err != nil {
+		return nil, err
+	}
+	return f.Format()
 }

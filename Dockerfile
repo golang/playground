@@ -51,6 +51,7 @@ RUN go install cloud.google.com/go/datastore
 RUN go install github.com/bradfitz/gomemcache/memcache
 RUN go install golang.org/x/tools/godoc/static
 RUN go install golang.org/x/tools/imports
+RUN go install github.com/rogpeppe/go-internal/modfile
 RUN go install github.com/rogpeppe/go-internal/txtar
 
 # Add and compile playground daemon
