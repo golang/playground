@@ -74,6 +74,7 @@ type response struct {
 // The handler returned supports Cross-Origin Resource Sharing (CORS) from any domain.
 func (s *server) commandHandler(cachePrefix string, cmdFunc func(*request) (*response, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		cachePrefix := cachePrefix // so we can modify it below
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if r.Method == "OPTIONS" {
 			// This is likely a pre-flight CORS request.
@@ -90,6 +91,10 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(*request) (*res
 			s.log.Errorf("error decoding request: %v", err)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
+		}
+
+		if req.WithVet {
+			cachePrefix += "_vet" // "prog" -> "prog_vet"
 		}
 
 		resp := &response{}
