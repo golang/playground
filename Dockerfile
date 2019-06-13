@@ -9,24 +9,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl bzip2 ca-c
 RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/trunk.544461/naclsdk_linux.tar.bz2 | tar -xj -C /tmp --strip-components=2 pepper_67/tools/sel_ldr_x86_64
 
 FROM debian:stretch AS build
-LABEL maintainer "golang-dev@googlegroups.com"
+LABEL maintainer="golang-dev@googlegroups.com"
+
+ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
+RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV GO_VERSION 1.12.5
-ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
+ARG GO_VERSION=go1.12.6
+ENV GO_VERSION ${GO_VERSION}
 
 # Fake time
 COPY enable-fake-time.patch /usr/local/playground/
 # Fake file system
 COPY fake_fs.lst /usr/local/playground/
 
-RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
-
 # Get the Go binary.
-RUN curl -sSL https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz -o /tmp/go.tar.gz
-RUN curl -sSL https://dl.google.com/go/go$GO_VERSION.linux-amd64.tar.gz.sha256 -o /tmp/go.tar.gz.sha256
+RUN curl -sSL https://dl.google.com/go/$GO_VERSION.linux-amd64.tar.gz -o /tmp/go.tar.gz
+RUN curl -sSL https://dl.google.com/go/$GO_VERSION.linux-amd64.tar.gz.sha256 -o /tmp/go.tar.gz.sha256
 RUN echo "$(cat /tmp/go.tar.gz.sha256) /tmp/go.tar.gz" | sha256sum -c -
 RUN tar -C /usr/local/ -vxzf /tmp/go.tar.gz
 # Make a copy for GOROOT_BOOTSTRAP, because we rebuild the toolchain and make.bash removes bin/go as its first step.
