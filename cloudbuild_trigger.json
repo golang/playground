@@ -1,0 +1,50 @@
+{
+  "id": "5a2c9e25-a71a-4adf-a785-76c3eca2ac8a",
+  "description": "Go repository release trigger for x/playground",
+  "github": {
+    "name": "go",
+    "owner": "golang",
+    "push": {
+      "tag": "^go[0-9](\\.[0-9]+)+$"
+    }
+  },
+  "build": {
+    "steps": [
+      {
+        "name": "gcr.io/cloud-builders/git",
+        "args": [
+          "clone",
+          "--depth",
+          "1",
+          "https://go.googlesource.com/playground"
+        ]
+      },
+      {
+        "dir": "playground",
+        "name": "gcr.io/cloud-builders/docker",
+        "args": [
+          "build",
+          "-t",
+          "gcr.io/$PROJECT_ID/playground",
+          "."
+        ],
+        "timeout": "1800s"
+      },
+      {
+        "dir": "playground",
+        "name": "gcr.io/cloud-builders/gcloud",
+        "args": [
+          "app",
+          "deploy",
+          "app.yaml",
+          "--project=$PROJECT_ID",
+          "--image-url=gcr.io/$PROJECT_ID/playground:latest"
+        ],
+        "timeout": "1200s"
+      }
+    ],
+    "images": [
+      "gcr.io/$PROJECT_ID/playground"
+    ]
+  }
+}
