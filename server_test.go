@@ -272,5 +272,36 @@ func TestAllowModuleDownloads(t *testing.T) {
 			t.Errorf("%d. allow = %v; want %v; files:\n%s", i, got, tt.want, filesAsString(files))
 		}
 	}
+}
 
+func TestPlaygroundGoproxy(t *testing.T) {
+	const envKey = "PLAY_GOPROXY"
+	defer os.Setenv(envKey, os.Getenv(envKey))
+
+	tests := []struct {
+		name string
+		env  string
+		want string
+	}{
+		{name: "missing", env: "", want: "https://proxy.golang.org"},
+		{name: "set_to_default", env: "https://proxy.golang.org", want: "https://proxy.golang.org"},
+		{name: "changed", env: "https://company.intranet", want: "https://company.intranet"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				if err := os.Setenv(envKey, tt.env); err != nil {
+					t.Errorf("unable to set environment variable for test: %s", err)
+				}
+			} else {
+				if err := os.Unsetenv(envKey); err != nil {
+					t.Errorf("unable to unset environment variable for test: %s", err)
+				}
+			}
+			got := playgroundGoproxy()
+			if got != tt.want {
+				t.Errorf("playgroundGoproxy = %s; want %s; env: %s", got, tt.want, tt.env)
+			}
+		})
+	}
 }

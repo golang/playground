@@ -370,7 +370,7 @@ func compileAndRun(req *request) (*response, error) {
 			return nil, fmt.Errorf("error creating temp directory: %v", err)
 		}
 		defer os.RemoveAll(goPath)
-		cmd.Env = append(cmd.Env, "GO111MODULE=on", "GOPROXY=https://proxy.golang.org")
+		cmd.Env = append(cmd.Env, "GO111MODULE=on", "GOPROXY="+playgroundGoproxy())
 	} else {
 		goPath = os.Getenv("GOPATH")                 // contains old code.google.com/p/go-tour, etc
 		cmd.Env = append(cmd.Env, "GO111MODULE=off") // in case it becomes on by default later
@@ -451,11 +451,22 @@ func allowModuleDownloads(files *fileSet) bool {
 		// these packages to still run, so the Dockerfile adds these packages
 		// at this name in $GOPATH. Any snippets using this old name wouldn't
 		// have expected (or been able to use) third-party packages anyway,
-		// so disabling modules and proxy.golang.org fetches is acceptable.
+		// so disabling modules and proxy fetches is acceptable.
 		return false
 	}
 	v, _ := strconv.ParseBool(os.Getenv("ALLOW_PLAY_MODULE_DOWNLOADS"))
 	return v
+}
+
+// playgroundGoproxy returns the GOPROXY environment config the playground should use.
+// It is fetched from the environment variable PLAY_GOPROXY. A missing or empty
+// value for PLAY_GOPROXY returns the default value of https://proxy.golang.org.
+func playgroundGoproxy() string {
+	proxypath := os.Getenv("PLAY_GOPROXY")
+	if proxypath != "" {
+		return proxypath
+	}
+	return "https://proxy.golang.org"
 }
 
 func (s *server) healthCheck() error {

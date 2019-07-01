@@ -60,7 +60,7 @@ func vetCheckInDir(dir, goPath string, modules bool) (output string, execErr err
 	if modules {
 		cmd.Env = append(cmd.Env,
 			"GO111MODULE=on",
-			"GOPROXY=https://proxy.golang.org",
+			"GOPROXY="+playgroundGoproxy(),
 		)
 	}
 	out, err := cmd.CombinedOutput()
