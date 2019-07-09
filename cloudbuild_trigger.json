@@ -45,6 +45,13 @@
         ]
       },
       {
+        "name": "gcr.io/cloud-builders/docker",
+        "args": [
+          "push",
+          "gcr.io/$PROJECT_ID/playground"
+        ]
+      },
+      {
         "dir": "playground",
         "name": "gcr.io/cloud-builders/gcloud",
         "args": [
@@ -56,9 +63,6 @@
         ]
       }
     ],
-    "timeout": "1800s",
-    "images": [
-      "gcr.io/$PROJECT_ID/playground"
-    ]
+    "timeout": "1800s"
   }
 }
