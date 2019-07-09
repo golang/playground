@@ -20,6 +20,31 @@ cat /path/to/code.go | go run client.go | curl -s --upload-file - localhost:8080
 
 ## Deployment
 
+### Deployment Triggers
+
+Playground releases automatically triggered when new Go repository tags are pushed to GitHub, or when master is pushed
+on the playground repository.
+
+For details, see [deploy/go_trigger.json](deploy/go_trigger.json),
+[deploy/playground_trigger.json](deploy/playground_trigger.json),
+and [deploy/deploy.json](deploy/deploy.json).
+
+After making changes to trigger configuration, update configuration by running the following Make target:
+
+```bash
+make update-cloudbuild-trigger
+```
+
+### Deploy via Cloud Build
+
+The Cloud Build configuration will always build and deploy with the latest supported release of Go.
+
+```bash
+gcloud builds submit --config deploy/deploy.json .
+```
+
+### Deploy via gcloud app deploy
+
 Building the playground Docker container takes more than the default 10 minute time limit of cloud build, so increase
 its timeout first (note, `app/cloud_build_timeout` is a global configuration value):
 
@@ -40,17 +65,6 @@ Then:
 
 ```bash
 gcloud --project=golang-org --account=you@google.com app deploy app.yaml
-```
-
-### Deployment Triggers
-
-Playground releases are also triggered when new tags are pushed to Github. The Cloud Build trigger configuration is
-defined in [cloudbuild_trigger.json](cloudbuild_trigger.json).
-
-Triggers can be updated by running the following Make target:
-
-```bash
-make update-cloudbuild-trigger
 ```
 
 ## Contributing
