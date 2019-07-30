@@ -44,6 +44,7 @@ RUN cd /usr/local/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean
 RUN mkdir /gocache
 ENV GOCACHE /gocache
 ENV GO111MODULE on
+ENV GOPROXY=https://proxy.golang.org
 
 COPY go.mod /go/src/playground/go.mod
 COPY go.sum /go/src/playground/go.sum
