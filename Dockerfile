@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV GO_BOOTSTRAP_VERSION go1.12.6
-ARG GO_VERSION=go1.12.6
+ENV GO_BOOTSTRAP_VERSION go1.13
+ARG GO_VERSION=go1.13
 ENV GO_VERSION ${GO_VERSION}
 
 # Fake time
