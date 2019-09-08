@@ -51,24 +51,30 @@ func TestEdit(t *testing.T) {
 
 	testCases := []struct {
 		desc       string
+		method     string
 		url        string
 		statusCode int
 		headers    map[string]string
 		respBody   []byte
 	}{
-		{"foo.play.golang.org to play.golang.org", "https://foo.play.golang.org", http.StatusFound, map[string]string{"Location": "https://play.golang.org"}, nil},
-		{"Non-existent page", "https://play.golang.org/foo", http.StatusNotFound, nil, nil},
-		{"Unknown snippet", "https://play.golang.org/p/foo", http.StatusNotFound, nil, nil},
-		{"Existing snippet", "https://play.golang.org/p/" + id, http.StatusOK, nil, nil},
-		{"Plaintext snippet", "https://play.golang.org/p/" + id + ".go", http.StatusOK, nil, barBody},
-		{"Download snippet", "https://play.golang.org/p/" + id + ".go?download=true", http.StatusOK, map[string]string{"Content-Disposition": fmt.Sprintf(`attachment; filename="%s.go"`, id)}, barBody},
+		{"OPTIONS no-op", http.MethodOptions, "https://play.golang.org/p/foo", http.StatusOK, nil, nil},
+		{"foo.play.golang.org to play.golang.org", http.MethodGet, "https://foo.play.golang.org", http.StatusFound, map[string]string{"Location": "https://play.golang.org"}, nil},
+		{"Non-existent page", http.MethodGet, "https://play.golang.org/foo", http.StatusNotFound, nil, nil},
+		{"Unknown snippet", http.MethodGet, "https://play.golang.org/p/foo", http.StatusNotFound, nil, nil},
+		{"Existing snippet", http.MethodGet, "https://play.golang.org/p/" + id, http.StatusOK, nil, nil},
+		{"Plaintext snippet", http.MethodGet, "https://play.golang.org/p/" + id + ".go", http.StatusOK, nil, barBody},
+		{"Download snippet", http.MethodGet, "https://play.golang.org/p/" + id + ".go?download=true", http.StatusOK, map[string]string{"Content-Disposition": fmt.Sprintf(`attachment; filename="%s.go"`, id)}, barBody},
 	}
 
 	for _, tc := range testCases {
-		req := httptest.NewRequest(http.MethodGet, tc.url, nil)
+		req := httptest.NewRequest(tc.method, tc.url, nil)
 		w := httptest.NewRecorder()
 		s.handleEdit(w, req)
 		resp := w.Result()
+		corsHeader := "Access-Control-Allow-Origin"
+		if got, want := resp.Header.Get(corsHeader), "*"; got != want {
+			t.Errorf("%s: %q header: got %q; want %q", tc.desc, corsHeader, got, want)
+		}
 		if got, want := resp.StatusCode, tc.statusCode; got != want {
 			t.Errorf("%s: got unexpected status code %d; want %d", tc.desc, got, want)
 		}
@@ -115,6 +121,10 @@ func TestShare(t *testing.T) {
 		w := httptest.NewRecorder()
 		s.handleShare(w, req)
 		resp := w.Result()
+		corsHeader := "Access-Control-Allow-Origin"
+		if got, want := resp.Header.Get(corsHeader), "*"; got != want {
+			t.Errorf("%s: %q header: got %q; want %q", tc.desc, corsHeader, got, want)
+		}
 		if got, want := resp.StatusCode, tc.statusCode; got != want {
 			t.Errorf("%s: got unexpected status code %d; want %d", tc.desc, got, want)
 		}

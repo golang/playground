@@ -26,6 +26,12 @@ type editData struct {
 }
 
 func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if r.Method == "OPTIONS" {
+		// This is likely a pre-flight CORS request.
+		return
+	}
+
 	// Redirect foo.play.golang.org to play.golang.org.
 	if strings.HasSuffix(r.Host, "."+hostname) {
 		http.Redirect(w, r, "https://"+hostname, http.StatusFound)

@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -15,49 +16,62 @@ import (
 func TestHandleFmt(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
+		method  string
 		body    string
 		imports bool
 		want    string
 		wantErr string
 	}{
 		{
-			name: "classic",
-			body: " package main\n    func main( ) {  }\n",
-			want: "package main\n\nfunc main() {}\n",
+			name:   "OPTIONS no-op",
+			method: http.MethodOptions,
+		},
+		{
+			name:   "classic",
+			method: http.MethodPost,
+			body:   " package main\n    func main( ) {  }\n",
+			want:   "package main\n\nfunc main() {}\n",
 		},
 		{
 			name:    "classic_goimports",
+			method:  http.MethodPost,
 			body:    " package main\nvar _ = fmt.Printf",
 			imports: true,
 			want:    "package main\n\nimport \"fmt\"\n\nvar _ = fmt.Printf\n",
 		},
 		{
-			name: "single_go_with_header",
-			body: "-- prog.go --\n  package main",
-			want: "-- prog.go --\npackage main\n",
+			name:   "single_go_with_header",
+			method: http.MethodPost,
+			body:   "-- prog.go --\n  package main",
+			want:   "-- prog.go --\npackage main\n",
 		},
 		{
-			name: "multi_go_with_header",
-			body: "-- prog.go --\n  package main\n\n\n-- two.go --\n   package main\n  var X = 5",
-			want: "-- prog.go --\npackage main\n-- two.go --\npackage main\n\nvar X = 5\n",
+			name:   "multi_go_with_header",
+			method: http.MethodPost,
+			body:   "-- prog.go --\n  package main\n\n\n-- two.go --\n   package main\n  var X = 5",
+			want:   "-- prog.go --\npackage main\n-- two.go --\npackage main\n\nvar X = 5\n",
 		},
 		{
-			name: "multi_go_without_header",
-			body: "    package main\n\n\n-- two.go --\n   package main\n  var X = 5",
-			want: "package main\n-- two.go --\npackage main\n\nvar X = 5\n",
+			name:   "multi_go_without_header",
+			method: http.MethodPost,
+			body:   "    package main\n\n\n-- two.go --\n   package main\n  var X = 5",
+			want:   "package main\n-- two.go --\npackage main\n\nvar X = 5\n",
 		},
 		{
-			name: "single_go.mod_with_header",
-			body: "-- go.mod --\n   module   \"foo\"   ",
-			want: "-- go.mod --\nmodule foo\n",
+			name:   "single_go.mod_with_header",
+			method: http.MethodPost,
+			body:   "-- go.mod --\n   module   \"foo\"   ",
+			want:   "-- go.mod --\nmodule foo\n",
 		},
 		{
-			name: "multi_go.mod_with_header",
-			body: "-- a/go.mod --\n  module foo\n\n\n-- b/go.mod --\n   module  \"bar\"",
-			want: "-- a/go.mod --\nmodule foo\n-- b/go.mod --\nmodule bar\n",
+			name:   "multi_go.mod_with_header",
+			method: http.MethodPost,
+			body:   "-- a/go.mod --\n  module foo\n\n\n-- b/go.mod --\n   module  \"bar\"",
+			want:   "-- a/go.mod --\nmodule foo\n-- b/go.mod --\nmodule bar\n",
 		},
 		{
-			name: "only_format_go_and_go.mod",
+			name:   "only_format_go_and_go.mod",
+			method: http.MethodPost,
 			body: "    package   main   \n\n\n" +
 				"-- go.mod --\n   module   foo   \n\n\n" +
 				"-- plain.txt --\n   plain   text   \n\n\n",
@@ -65,33 +79,39 @@ func TestHandleFmt(t *testing.T) {
 		},
 		{
 			name:    "error_gofmt",
+			method:  http.MethodPost,
 			body:    "package 123\n",
 			wantErr: "prog.go:1:9: expected 'IDENT', found 123",
 		},
 		{
 			name:    "error_gofmt_with_header",
+			method:  http.MethodPost,
 			body:    "-- dir/one.go --\npackage 123\n",
 			wantErr: "dir/one.go:1:9: expected 'IDENT', found 123",
 		},
 		{
 			name:    "error_goimports",
+			method:  http.MethodPost,
 			body:    "package 123\n",
 			imports: true,
 			wantErr: "prog.go:1:9: expected 'IDENT', found 123",
 		},
 		{
 			name:    "error_goimports_with_header",
+			method:  http.MethodPost,
 			body:    "-- dir/one.go --\npackage 123\n",
 			imports: true,
 			wantErr: "dir/one.go:1:9: expected 'IDENT', found 123",
 		},
 		{
 			name:    "error_go.mod",
+			method:  http.MethodPost,
 			body:    "-- go.mod --\n123\n",
 			wantErr: "go.mod:1: unknown directive: 123",
 		},
 		{
 			name:    "error_go.mod_with_header",
+			method:  http.MethodPost,
 			body:    "-- dir/go.mod --\n123\n",
 			wantErr: "dir/go.mod:1: unknown directive: 123",
 		},
@@ -109,6 +129,10 @@ func TestHandleFmt(t *testing.T) {
 			resp := rec.Result()
 			if resp.StatusCode != 200 {
 				t.Fatalf("code = %v", resp.Status)
+			}
+			corsHeader := "Access-Control-Allow-Origin"
+			if got, want := resp.Header.Get(corsHeader), "*"; got != want {
+				t.Errorf("Header %q: got %q; want %q", corsHeader, got, want)
 			}
 			if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
 				t.Fatalf("Content-Type = %q; want application/json", ct)
