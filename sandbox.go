@@ -34,16 +34,23 @@ import (
 )
 
 const (
-	maxRunTime = 2 * time.Second
+	maxCompileTime = 5 * time.Second
+	maxRunTime     = 2 * time.Second
 
 	// progName is the implicit program name written to the temp
 	// dir and used in compiler and vet errors.
 	progName = "prog.go"
 )
 
+const goBuildTimeoutError = "timeout running go build"
+
 // Responses that contain these strings will not be cached due to
 // their non-deterministic nature.
-var nonCachingErrors = []string{"out of memory", "cannot allocate memory"}
+var nonCachingErrors = []string{
+	"out of memory",
+	"cannot allocate memory",
+	goBuildTimeoutError,
+}
 
 type request struct {
 	Body    string
@@ -363,7 +370,10 @@ func compileAndRun(req *request) (*response, error) {
 
 	exe := filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
-	cmd := exec.Command("go", "build", "-o", exe, buildPkgArg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), maxCompileTime)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", exe, buildPkgArg)
 	cmd.Dir = tmpDir
 	var goPath string
 	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOCACHE=" + goCache}
@@ -381,7 +391,12 @@ func compileAndRun(req *request) (*response, error) {
 		cmd.Env = append(cmd.Env, "GO111MODULE=off") // in case it becomes on by default later
 	}
 	cmd.Env = append(cmd.Env, "GOPATH="+goPath)
+	t0 := time.Now()
 	if out, err := cmd.CombinedOutput(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("go build timed out after %v", time.Since(t0))
+			return &response{Errors: goBuildTimeoutError}, nil
+		}
 		if _, ok := err.(*exec.ExitError); ok {
 			// Return compile errors to the user.
 
@@ -396,7 +411,7 @@ func compileAndRun(req *request) (*response, error) {
 		}
 		return nil, fmt.Errorf("error building go source: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), maxRunTime)
+	ctx, cancel = context.WithTimeout(context.Background(), maxRunTime)
 	defer cancel()
 	cmd = exec.CommandContext(ctx, "sel_ldr_x86_64", "-l", "/dev/null", "-S", "-e", exe, testParam)
 	rec := new(Recorder)
