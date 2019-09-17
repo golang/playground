@@ -8,8 +8,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	stdlog "log"
+	"net"
 	"os"
 	"reflect"
 	"strings"
@@ -19,12 +21,27 @@ import (
 type compileTest struct {
 	name               string // test name
 	prog, want, errors string
+	wantFunc           func(got string) error // alternative to want
 	withVet            bool
 	wantEvents         []Event
 	wantVetErrors      string
 }
 
+func (s *server) testNacl() {
+	log.Printf("testing nacl mode")
+	s.runTests()
+}
+
 func (s *server) test() {
+	if _, err := net.ResolveIPAddr("ip", "sandbox_dev.sandnet."); err != nil {
+		log.Fatalf("sandbox_dev.sandnet not available")
+	}
+	os.Setenv("DEBUG_FORCE_GVISOR", "1")
+	os.Setenv("SANDBOX_BACKEND_URL", "http://sandbox_dev.sandnet/run")
+	s.runTests()
+}
+
+func (s *server) runTests() {
 	if err := s.healthCheck(); err != nil {
 		stdlog.Fatal(err)
 	}
@@ -33,43 +50,65 @@ func (s *server) test() {
 	defer func(old string) { os.Setenv("ALLOW_PLAY_MODULE_DOWNLOADS", old) }(os.Getenv("ALLOW_PLAY_MODULE_DOWNLOADS"))
 	os.Setenv("ALLOW_PLAY_MODULE_DOWNLOADS", "true")
 
+	failed := false
 	for i, t := range tests {
-		fmt.Printf("testing case %d (%q)...\n", i, t.name)
-		resp, err := compileAndRun(&request{Body: t.prog, WithVet: t.withVet})
+		stdlog.Printf("testing case %d (%q)...\n", i, t.name)
+		resp, err := compileAndRun(context.Background(), &request{Body: t.prog, WithVet: t.withVet})
 		if err != nil {
 			stdlog.Fatal(err)
 		}
 		if t.wantEvents != nil {
 			if !reflect.DeepEqual(resp.Events, t.wantEvents) {
-				stdlog.Fatalf("resp.Events = %q, want %q", resp.Events, t.wantEvents)
+				stdlog.Printf("resp.Events = %q, want %q", resp.Events, t.wantEvents)
+				failed = true
 			}
 			continue
 		}
 		if t.errors != "" {
 			if resp.Errors != t.errors {
-				stdlog.Fatalf("resp.Errors = %q, want %q", resp.Errors, t.errors)
+				stdlog.Printf("resp.Errors = %q, want %q", resp.Errors, t.errors)
+				failed = true
 			}
 			continue
 		}
 		if resp.Errors != "" {
-			stdlog.Fatal(resp.Errors)
+			stdlog.Print(resp.Errors)
+			failed = true
+			continue
 		}
 		if resp.VetErrors != t.wantVetErrors {
-			stdlog.Fatalf("resp.VetErrs = %q, want %q", resp.VetErrors, t.wantVetErrors)
+			stdlog.Printf("resp.VetErrs = %q, want %q", resp.VetErrors, t.wantVetErrors)
+			failed = true
+			continue
 		}
 		if t.withVet && (resp.VetErrors != "") == resp.VetOK {
-			stdlog.Fatalf("resp.VetErrs & VetOK inconsistent; VetErrs = %q; VetOK = %v", resp.VetErrors, resp.VetOK)
+			stdlog.Printf("resp.VetErrs & VetOK inconsistent; VetErrs = %q; VetOK = %v", resp.VetErrors, resp.VetOK)
+			failed = true
+			continue
 		}
 		if len(resp.Events) == 0 {
-			stdlog.Fatalf("unexpected output: %q, want %q", "", t.want)
+			stdlog.Printf("unexpected output: %q, want %q", "", t.want)
+			failed = true
+			continue
 		}
 		var b strings.Builder
 		for _, e := range resp.Events {
 			b.WriteString(e.Message)
 		}
-		if !strings.Contains(b.String(), t.want) {
-			stdlog.Fatalf("unexpected output: %q, want %q", b.String(), t.want)
+		if t.wantFunc != nil {
+			if err := t.wantFunc(b.String()); err != nil {
+				stdlog.Printf("%v\n", err)
+				failed = true
+			}
+		} else {
+			if !strings.Contains(b.String(), t.want) {
+				stdlog.Printf("unexpected output: %q, want %q", b.String(), t.want)
+				failed = true
+			}
 		}
+	}
+	if failed {
+		stdlog.Fatalf("FAILED")
 	}
 	fmt.Println("OK")
 }
@@ -190,11 +229,16 @@ import (
 
 func main() {
 	filepath.Walk("/", func(path string, info os.FileInfo, err error) error {
+		if path == "/proc" || path == "/sys" {
+			return filepath.SkipDir
+		}
 		fmt.Println(path)
 		return nil
 	})
 }
-`, want: `/
+`, wantFunc: func(got string) error {
+			// The environment for the old nacl sandbox:
+			if strings.TrimSpace(got) == `/
 /dev
 /dev/null
 /dev/random
@@ -211,8 +255,31 @@ func main() {
 /usr/local/go
 /usr/local/go/lib
 /usr/local/go/lib/time
-/usr/local/go/lib/time/zoneinfo.zip`},
-
+/usr/local/go/lib/time/zoneinfo.zip` {
+				return nil
+			}
+			have := map[string]bool{}
+			for _, f := range strings.Split(got, "\n") {
+				have[f] = true
+			}
+			for _, expect := range []string{
+				"/.dockerenv",
+				"/__runsc_containers__",
+				"/etc/hostname",
+				"/dev/zero",
+				"/lib/ld-linux-x86-64.so.2",
+				"/lib/libc.so.6",
+				"/etc/nsswitch.conf",
+				"/bin/env",
+				"/tmpfs",
+			} {
+				if !have[expect] {
+					return fmt.Errorf("missing expected sandbox file %q; got:\n%s", expect, got)
+				}
+			}
+			return nil
+		},
+	},
 	{
 		name: "test_passes",
 		prog: `
@@ -404,7 +471,9 @@ func main() {
 package main
 import ("fmt"; "github.com/bradfitz/iter")
 func main() { for i := range iter.N(5) { fmt.Println(i) } }
-`, want: "0\n1\n2\n3\n4\n"},
+`,
+		want: "0\n1\n2\n3\n4\n",
+	},
 
 	{
 		name:          "compile_with_vet",

@@ -45,6 +45,10 @@ func main() {
 		s.test()
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "testnacl" {
+		s.testNacl()
+		return
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {

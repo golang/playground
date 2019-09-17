@@ -2,12 +2,14 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
+############################################################################
 FROM debian:stretch AS nacl
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl bzip2 ca-certificates
 
 RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/trunk.544461/naclsdk_linux.tar.bz2 | tar -xj -C /tmp --strip-components=2 pepper_67/tools/sel_ldr_x86_64
 
+############################################################################
 FROM debian:stretch AS build
 LABEL maintainer="golang-dev@googlegroups.com"
 
@@ -64,12 +66,32 @@ COPY . /go/src/playground/
 WORKDIR /go/src/playground
 RUN go install
 
+############################################################################
+# Temporary Docker stage to add a pre-Go1.14 $GOROOT into our
+# container for early linux/amd64 testing.
+FROM golang:1.13 AS temp_pre_go14
+
+ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
+RUN apt-get update && apt-get install -y --no-install-recommends ${BUILD_DEPS}
+
+# go1.14beta1:
+ENV GO_REV a5bfd9da1d1b24f326399b6b75558ded14514f23
+
+RUN cd /usr/local && git clone https://go.googlesource.com/go go1.14 && cd go1.14 && git reset --hard ${GO_REV}
+WORKDIR /usr/local/go1.14/src
+RUN ./make.bash
+ENV GOROOT /usr/local/go1.14
+RUN ../bin/go install --tags=faketime std
+
+############################################################################
+# Final stage.
 FROM debian:stretch
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
 COPY --from=build /usr/local/go /usr/local/go
 COPY --from=nacl /tmp/sel_ldr_x86_64 /usr/local/bin
+COPY --from=temp_pre_go14 /usr/local/go1.14 /usr/local/go1.14
 
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
@@ -100,9 +122,6 @@ COPY --from=build /go/bin/playground /app
 COPY edit.html /app
 COPY static /app/static
 WORKDIR /app
-
-# Run tests
-RUN /app/playground test
 
 # Whether we allow third-party imports via proxy.golang.org:
 ENV ALLOW_PLAY_MODULE_DOWNLOADS true

@@ -1,0 +1,16 @@
+spec:
+  containers:
+    - name: playground
+      image: 'gcr.io/PROJECT_NAME/gvisor-playground-sandbox:latest'
+      volumeMounts:
+        - name: dockersock
+          mountPath: /var/run/docker.sock
+      securityContext:
+        privileged: true
+      stdin: false
+      tty: true
+  restartPolicy: Always
+  volumes:
+    - name: dockersock
+      hostPath:
+        path: /var/run/docker.sock

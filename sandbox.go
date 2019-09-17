@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/doc"
@@ -26,11 +27,12 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"text/template"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/bradfitz/gomemcache/memcache"
+	"golang.org/x/playground/sandbox/sandboxtypes"
 )
 
 const (
@@ -79,7 +81,7 @@ type response struct {
 // If there is no cached *response for the combination of cachePrefix and request.Body,
 // handler calls cmdFunc and in case of a nil error, stores the value of *response in the cache.
 // The handler returned supports Cross-Origin Resource Sharing (CORS) from any domain.
-func (s *server) commandHandler(cachePrefix string, cmdFunc func(*request) (*response, error)) http.HandlerFunc {
+func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context, *request) (*response, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cachePrefix := cachePrefix // so we can modify it below
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -110,7 +112,7 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(*request) (*res
 			if err != memcache.ErrCacheMiss {
 				s.log.Errorf("s.cache.Get(%q, &response): %v", key, err)
 			}
-			resp, err = cmdFunc(&req)
+			resp, err = cmdFunc(r.Context(), &req)
 			if err != nil {
 				s.log.Errorf("cmdFunc error: %v", err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -315,7 +317,7 @@ var failedTestPattern = "--- FAIL"
 // The output of successfully ran program is returned in *response.Events.
 // If a program cannot be built or has timed out,
 // *response.Errors contains an explanation for a user.
-func compileAndRun(req *request) (*response, error) {
+func compileAndRun(ctx context.Context, req *request) (*response, error) {
 	// TODO(andybons): Add semaphore to limit number of running programs at once.
 	tmpDir, err := ioutil.TempDir("", "sandbox")
 	if err != nil {
@@ -368,15 +370,34 @@ func compileAndRun(req *request) (*response, error) {
 		}
 	}
 
+	// TODO: remove all this once Go 1.14 is out. This is a transitional/debug step
+	// to support both nacl & gvisor temporarily.
+	useGvisor := os.Getenv("GO_VERSION") >= "go1.14" ||
+		os.Getenv("DEBUG_FORCE_GVISOR") == "1" ||
+		strings.Contains(req.Body, "//play:gvisor\n")
+
 	exe := filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
 
-	ctx, cancel := context.WithTimeout(context.Background(), maxCompileTime)
+	buildCtx, cancel := context.WithTimeout(ctx, maxCompileTime)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", "build", "-o", exe, buildPkgArg)
+	goBin := "go"
+	if useGvisor {
+		goBin = "/usr/local/go1.14/bin/go"
+	}
+	cmd := exec.CommandContext(buildCtx, goBin,
+		"build",
+		"-o", exe,
+		"-tags=faketime", // required for Go 1.14+, no-op before
+		buildPkgArg)
 	cmd.Dir = tmpDir
 	var goPath string
-	cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32", "GOCACHE=" + goCache}
+	if useGvisor {
+		cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go1.14"}
+	} else {
+		cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32"}
+	}
+	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
 	if useModules {
 		// Create a GOPATH just for modules to be downloaded
 		// into GOPATH/pkg/mod.
@@ -411,28 +432,62 @@ func compileAndRun(req *request) (*response, error) {
 		}
 		return nil, fmt.Errorf("error building go source: %v", err)
 	}
-	ctx, cancel = context.WithTimeout(context.Background(), maxRunTime)
+	runCtx, cancel := context.WithTimeout(ctx, maxRunTime)
 	defer cancel()
-	cmd = exec.CommandContext(ctx, "sel_ldr_x86_64", "-l", "/dev/null", "-S", "-e", exe, testParam)
 	rec := new(Recorder)
-	cmd.Stdout = rec.Stdout()
-	cmd.Stderr = rec.Stderr()
-	var status int
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			// Send what was captured before the timeout.
-			events, err := rec.Events()
-			if err != nil {
-				return nil, fmt.Errorf("error decoding events: %v", err)
+	var exitCode int
+	if useGvisor {
+		f, err := os.Open(exe)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		req, err := http.NewRequestWithContext(ctx, "POST", sandboxBackendURL(), f)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Add("Idempotency-Key", "1") // lets Transport do retries with a POST
+		if testParam != "" {
+			req.Header.Add("X-Argument", testParam)
+		}
+		req.GetBody = func() (io.ReadCloser, error) { return os.Open(exe) }
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("unexpected response from backend: %v", res.Status)
+		}
+		var execRes sandboxtypes.Response
+		if err := json.NewDecoder(res.Body).Decode(&execRes); err != nil {
+			log.Printf("JSON decode error from backend: %v", err)
+			return nil, errors.New("error parsing JSON from backend")
+		}
+		if execRes.Error != "" {
+			return &response{Errors: execRes.Error}, nil
+		}
+		exitCode = execRes.ExitCode
+		rec.Stdout().Write(execRes.Stdout)
+		rec.Stderr().Write(execRes.Stderr)
+	} else {
+		cmd := exec.CommandContext(runCtx, "sel_ldr_x86_64", "-l", "/dev/null", "-S", "-e", exe, testParam)
+		cmd.Stdout = rec.Stdout()
+		cmd.Stderr = rec.Stderr()
+		if err := cmd.Run(); err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				// Send what was captured before the timeout.
+				events, err := rec.Events()
+				if err != nil {
+					return nil, fmt.Errorf("error decoding events: %v", err)
+				}
+				return &response{Errors: "process took too long", Events: events}, nil
 			}
-			return &response{Errors: "process took too long", Events: events}, nil
-		}
-		exitErr, ok := err.(*exec.ExitError)
-		if !ok {
-			return nil, fmt.Errorf("error running sandbox: %v", err)
-		}
-		if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-			status = ws.ExitStatus()
+			exitErr, ok := err.(*exec.ExitError)
+			if !ok {
+				return nil, fmt.Errorf("error running sandbox: %v", err)
+			}
+			exitCode = exitErr.ExitCode()
 		}
 	}
 	events, err := rec.Events()
@@ -455,7 +510,7 @@ func compileAndRun(req *request) (*response, error) {
 	}
 	return &response{
 		Events:      events,
-		Status:      status,
+		Status:      exitCode,
 		IsTest:      testParam != "",
 		TestsFailed: fails,
 		VetErrors:   vetOut,
@@ -490,7 +545,8 @@ func playgroundGoproxy() string {
 }
 
 func (s *server) healthCheck() error {
-	resp, err := compileAndRun(&request{Body: healthProg})
+	ctx := context.Background() // TODO: cap it to some reasonable timeout
+	resp, err := compileAndRun(ctx, &request{Body: healthProg})
 	if err != nil {
 		return err
 	}
@@ -501,6 +557,18 @@ func (s *server) healthCheck() error {
 		return fmt.Errorf("unexpected output: %v", resp.Events)
 	}
 	return nil
+}
+
+func sandboxBackendURL() string {
+	if v := os.Getenv("SANDBOX_BACKEND_URL"); v != "" {
+		return v
+	}
+	id, _ := metadata.ProjectID()
+	switch id {
+	case "golang-org":
+		return "http://sandbox.play-sandbox-fwd.il4.us-central1.lb.golang-org.internal/run"
+	}
+	panic(fmt.Sprintf("no SANDBOX_BACKEND_URL environment and no default defined for project %q", id))
 }
 
 const healthProg = `

@@ -1,0 +1,17 @@
+#cloud-config
+
+write_files:
+- path: /etc/docker/daemon.json
+  permissions: 0644
+  owner: root
+  content: |
+    {
+      "live-restore": true,
+      "storage-driver": "overlay2",
+      "runtimes": { "runsc": { "path": "/var/lib/docker/runsc", "runtimeArgs": [] } }
+    }
+
+runcmd:
+- curl -L -o /var/lib/docker/runsc https://storage.googleapis.com/go-builder-data/runsc-1.0.1
+- chmod +x /var/lib/docker/runsc
+- systemctl reload docker.service

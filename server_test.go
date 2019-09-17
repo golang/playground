@@ -161,7 +161,7 @@ func TestCommandHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newServer(testingOptions(t)): %v", err)
 	}
-	testHandler := s.commandHandler("test", func(r *request) (*response, error) {
+	testHandler := s.commandHandler("test", func(_ context.Context, r *request) (*response, error) {
 		if r.Body == "fail" {
 			return nil, fmt.Errorf("non recoverable")
 		}

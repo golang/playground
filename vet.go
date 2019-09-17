@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -21,7 +22,7 @@ import (
 // the /compile (compileAndRun) handler instead with the WithVet
 // boolean set. This code path doesn't support modules and only exists
 // as a temporary compatiblity bridge to older javascript clients.
-func vetCheck(req *request) (*response, error) {
+func vetCheck(ctx context.Context, req *request) (*response, error) {
 	tmpDir, err := ioutil.TempDir("", "vet")
 	if err != nil {
 		return nil, fmt.Errorf("error creating temp directory: %v", err)
