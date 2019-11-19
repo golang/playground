@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/rogpeppe/go-internal/modfile"
+	"golang.org/x/mod/modfile"
 	"golang.org/x/tools/imports"
 )
 

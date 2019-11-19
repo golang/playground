@@ -11,7 +11,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/rogpeppe/go-internal/txtar"
+	"golang.org/x/tools/txtar"
 )
 
 // fileSet is a set of files.
