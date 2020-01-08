@@ -3,9 +3,9 @@
 // license that can be found in the LICENSE file.
 
 // The sandbox program is an HTTP server that receives untrusted
-// linux/amd64 in a POST request and then executes them in a gvisor
-// sandbox using Docker, returning the output as a response to the
-// POST.
+// linux/amd64 binaries in a POST request and then executes them in
+// a gvisor sandbox using Docker, returning the output as a response
+// to the POST.
 //
 // It's part of the Go playground (https://play.golang.org/).
 package main
