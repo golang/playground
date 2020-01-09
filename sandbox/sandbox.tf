@@ -37,7 +37,7 @@ resource "google_compute_instance_template" "inst_tmpl" {
   name         = "play-sandbox-tmpl"
   machine_type = "n1-standard-1"
   metadata = {
-    "ssh-keys"                  = "bradfitz:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCtL4Di+zypBIRmvohzfC4mOzETaz/DtzANPKir/mUE1QiC8HuL8BDpIu3rZZY1gAnQf3IZMpgQYgx90TZskgWfi7xLN2mDh2iBZB0KUDlpNpwn1SzSUTQU10XV5mOLm1B7L+w3QXA1wz7kMjmztxZNli/tvZI5BtAX6c58c4Rn0pjQTPeEVPMMvEj6zPUy4QInWTgtrbTj3On/e95F3ZmUjEKFfjeFxVPh7fF6mSygzcxEyGYxTbMdUod/dNbZD/7HY5eTNQPSvjp+GaoodbFEdYWnk9vtoX/2VWYo0J/+w6oHprDzj7dPzKeJeCjpnKra7DyCS/RxIIPt5Giwdj2F bradfitz@bradfitz-glinux-desktop.sea.corp.google.com"
+    "ssh-keys"                  = "bradfitz:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDaRpEbckQ+harGnrKUjk3JziwYqvz2bRNn0ngpzROaeCwm1XetDby/fgmQruZE/OBpbeOaCOd/yyP89Oer9CJx41AFEfHbudePZti/y+fmZ05N+QoBSAG0JtYWVydIjAjCenKBbNrYmwcQ840uNdIv9Ztqu3lbO/syMgcajappzdqMlwVZuHTJUe1JQD355PiinFHPTa7l0MrZPfiSsBdiTGmO39iVa312yshu6dZAvDgRL+bgIzTL6udPL/cVq+zlkvoZbzC4ajuZs4w2in+kqXHQSxbKHlXOhPrej1fwhspm+0Y7hEZOaN5Juc5GseNCHImtJh1rei1Qa4U/nTjt bradfitz@bradfitz-dev"
     "gce-container-declaration" = data.local_file.konlet.content
     "user-data"                 = data.local_file.cloud_init.content
   }

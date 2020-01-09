@@ -38,6 +38,7 @@ var (
 	mode       = flag.String("mode", "server", "Whether to run in \"server\" mode or \"contained\" mode. The contained mode is used internally by the server mode.")
 	dev        = flag.Bool("dev", false, "run in dev mode (show help messages)")
 	numWorkers = flag.Int("workers", runtime.NumCPU(), "number of parallel gvisor containers to pre-spin up & let run concurrently")
+	container  = flag.String("untrusted-container", "gcr.io/golang-org/playground-sandbox-gvisor:latest", "container image name that hosts the untrusted binary under gvisor")
 )
 
 const (
@@ -112,10 +113,11 @@ func main() {
 	}
 	if *dev {
 		log.Printf("Running in dev mode; container published to host at: http://localhost:8080/")
-		// TODO: XXXX FIXME: this is no longer the protocol since the addition of the processMeta JSON header,
-		// so write a client program to do this instead?
 		log.Printf("Run a binary with: curl -v --data-binary @/home/bradfitz/hello http://localhost:8080/run\n")
 	} else {
+		if out, err := exec.Command("docker", "pull", *container).CombinedOutput(); err != nil {
+			log.Fatalf("error pulling %s: %v, %s", *container, err, out)
+		}
 		log.Printf("Listening on %s", *listenAddr)
 	}
 
@@ -135,6 +137,8 @@ func handleSignals() {
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "OK\n")
+	// TODO: more? split into liveness & readiness checks? check
+	// number of active/stuck containers, memory?
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
@@ -290,7 +294,7 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 		"--network=none",
 		"--memory="+fmt.Sprint(memoryLimitBytes),
 
-		"gcr.io/golang-org/playground-sandbox-gvisor:latest",
+		*container,
 		"--mode=contained")
 	stdin, err = cmd.StdinPipe()
 	if err != nil {
