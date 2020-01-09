@@ -105,7 +105,6 @@ func main() {
 
 	readyContainer = make(chan *Container, *numWorkers)
 	runSem = make(chan struct{}, *numWorkers)
-	go makeWorkers()
 	go handleSignals()
 
 	if out, err := exec.Command("docker", "version").CombinedOutput(); err != nil {
@@ -125,6 +124,9 @@ func main() {
 	http.HandleFunc("/healthz", healthHandler)
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/run", runHandler)
+
+	go makeWorkers()
+
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }
 
