@@ -51,9 +51,14 @@ const (
 var errTooMuchOutput = errors.New("Output too large")
 
 // containedStartMessage is the first thing written to stdout by the
-// contained process when it starts up. This lets the parent HTTP
+// gvisor-contained process when it starts up. This lets the parent HTTP
 // server know that a particular container is ready to run a binary.
-const containedStartMessage = "started\n"
+const containedStartMessage = "golang-gvisor-process-started\n"
+
+// containedStderrHeader is written to stderr after the gvisor-contained process
+// successfully reads the processMeta JSON line + executable binary from stdin,
+// but before it's run.
+var containedStderrHeader = []byte("golang-gvisor-process-got-input\n")
 
 var (
 	readyContainer chan *Container
@@ -185,6 +190,10 @@ func runInGvisor() {
 		log.Fatalf("error decoding JSON meta: %v", err)
 	}
 
+	if _, err := os.Stderr.Write(containedStderrHeader); err != nil {
+		log.Fatalf("writing header to stderr: %v", err)
+	}
+
 	// As part of a temporary transition plan, we also support
 	// running nacl binaries in this sandbox. The point isn't to
 	// double sandbox things as much as it is to let us transition
@@ -211,7 +220,6 @@ func runInGvisor() {
 	os.Remove(binPath) // not that it matters much, this container will be nuked
 	os.Exit(errExitCode(err))
 	return
-
 }
 
 func makeWorkers() {
@@ -503,25 +511,9 @@ func sendResponse(w http.ResponseWriter, r *sandboxtypes.Response) {
 // cleanStderr removes spam stderr lines from the beginning of x
 // and returns a slice of x.
 func cleanStderr(x []byte) []byte {
-	for {
-		nl := bytes.IndexByte(x, '\n')
-		if nl == -1 || !isSpamStderrLine(x[:nl+1]) {
-			return x
-		}
-		x = x[nl+1:]
+	i := bytes.Index(x, containedStderrHeader)
+	if i == -1 {
+		return x
 	}
-}
-
-var warningPrefix = []byte("WARNING: ")
-
-// isSpamStderrLine reports whether line is a spammy line of stderr
-// output from Docker. Currently it only matches things starting with
-// "WARNING: " like:
-//     WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
-//
-// TODO: remove this and instead just make the child process start by
-// writing a known header to stderr, then have parent skip everything
-// before that unique header.
-func isSpamStderrLine(line []byte) bool {
-	return bytes.HasPrefix(line, warningPrefix)
+	return x[i+len(containedStderrHeader):]
 }
