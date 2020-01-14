@@ -51,7 +51,7 @@ resource "google_compute_instance_template" "inst_tmpl" {
   # See https://cloud.google.com/load-balancing/docs/health-checks
   tags = ["allow-health-checks", "allow-network-lb-health-checks"]
   service_account {
-    scopes = ["storage-ro"]
+    scopes = ["logging-write", "storage-ro"]
   }
   disk {
     source_image = data.google_compute_image.cos.self_link
