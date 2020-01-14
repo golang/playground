@@ -1,5 +1,8 @@
 # TODO: move the network configuration into terraform too? It was created by hand with:
 # gcloud compute networks subnets update golang --region=us-central1 --enable-private-ip-google-access
+#
+# Likewise, the firewall rules for health checking were created imperatively based on
+# https://cloud.google.com/load-balancing/docs/health-checks#firewall_rules
 
 terraform {
   backend "gcs" {
@@ -35,7 +38,7 @@ data "google_compute_image" "cos" {
 
 resource "google_compute_instance_template" "inst_tmpl" {
   name         = "play-sandbox-tmpl"
-  machine_type = "n1-standard-1"
+  machine_type = "n1-standard-8"
   metadata = {
     "ssh-keys"                  = "bradfitz:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDaRpEbckQ+harGnrKUjk3JziwYqvz2bRNn0ngpzROaeCwm1XetDby/fgmQruZE/OBpbeOaCOd/yyP89Oer9CJx41AFEfHbudePZti/y+fmZ05N+QoBSAG0JtYWVydIjAjCenKBbNrYmwcQ840uNdIv9Ztqu3lbO/syMgcajappzdqMlwVZuHTJUe1JQD355PiinFHPTa7l0MrZPfiSsBdiTGmO39iVa312yshu6dZAvDgRL+bgIzTL6udPL/cVq+zlkvoZbzC4ajuZs4w2in+kqXHQSxbKHlXOhPrej1fwhspm+0Y7hEZOaN5Juc5GseNCHImtJh1rei1Qa4U/nTjt bradfitz@bradfitz-dev"
     "gce-container-declaration" = data.local_file.konlet.content
@@ -44,6 +47,9 @@ resource "google_compute_instance_template" "inst_tmpl" {
   network_interface {
     network = "golang"
   }
+  # Allow both "non-legacy" and "legacy" health checks, so we can change types in the future.
+  # See https://cloud.google.com/load-balancing/docs/health-checks
+  tags = ["allow-health-checks", "allow-network-lb-health-checks"]
   service_account {
     scopes = ["storage-ro"]
   }
