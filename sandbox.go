@@ -370,8 +370,11 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 		}
 	}
 
-	// TODO: remove all this once Go 1.14 is out. This is a transitional/debug step
-	// to support both nacl & gvisor temporarily.
+	// TODO: simplify this once Go 1.14 is out. We should remove
+	// the //play:gvisor substring hack and DEBUG_FORCE_GVISOR and
+	// instead implement https://golang.org/issue/33629 to
+	// officially support different Go versions (Go tip + past two
+	// releases).
 	useGvisor := os.Getenv("GO_VERSION") >= "go1.14" ||
 		os.Getenv("DEBUG_FORCE_GVISOR") == "1" ||
 		strings.Contains(req.Body, "//play:gvisor\n")
@@ -437,12 +440,18 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 	rec := new(Recorder)
 	var exitCode int
 	if useGvisor {
-		f, err := os.Open(exe)
+		const maxBinarySize = 100 << 20 // copied from sandbox backend; TODO: unify?
+		if fi, err := os.Stat(exe); err != nil || fi.Size() == 0 || fi.Size() > maxBinarySize {
+			if err != nil {
+				return nil, fmt.Errorf("failed to stat binary: %v", err)
+			}
+			return nil, fmt.Errorf("invalid binary size %d", fi.Size())
+		}
+		exeBytes, err := ioutil.ReadFile(exe)
 		if err != nil {
 			return nil, err
 		}
-		defer f.Close()
-		req, err := http.NewRequestWithContext(ctx, "POST", sandboxBackendURL(), f)
+		req, err := http.NewRequestWithContext(ctx, "POST", sandboxBackendURL(), bytes.NewReader(exeBytes))
 		if err != nil {
 			return nil, err
 		}
@@ -450,7 +459,7 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 		if testParam != "" {
 			req.Header.Add("X-Argument", testParam)
 		}
-		req.GetBody = func() (io.ReadCloser, error) { return os.Open(exe) }
+		req.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(exeBytes)), nil }
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return nil, err
@@ -503,6 +512,7 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 	}
 	var vetOut string
 	if req.WithVet {
+		// TODO: do this concurrently with the execution to reduce latency.
 		vetOut, err = vetCheckInDir(tmpDir, goPath, useModules)
 		if err != nil {
 			return nil, fmt.Errorf("running vet: %v", err)
@@ -559,6 +569,11 @@ func (s *server) healthCheck() error {
 	return nil
 }
 
+// sandboxBackendURL returns the URL of the sandbox backend that
+// executes binaries. This backend is required for Go 1.14+ (where it
+// executes using gvisor, since Native Client support is removed).
+//
+// This function either returns a non-empty string or it panics.
 func sandboxBackendURL() string {
 	if v := os.Getenv("SANDBOX_BACKEND_URL"); v != "" {
 		return v
