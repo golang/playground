@@ -20,6 +20,7 @@ import (
 	"go/token"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,11 +28,13 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/bradfitz/gomemcache/memcache"
+	"golang.org/x/playground/internal/gcpdial"
 	"golang.org/x/playground/sandbox/sandboxtypes"
 )
 
@@ -460,7 +463,7 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 			req.Header.Add("X-Argument", testParam)
 		}
 		req.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(exeBytes)), nil }
-		res, err := http.DefaultClient.Do(req)
+		res, err := sandboxBackendClient().Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -584,6 +587,47 @@ func sandboxBackendURL() string {
 		return "http://sandbox.play-sandbox-fwd.il4.us-central1.lb.golang-org.internal/run"
 	}
 	panic(fmt.Sprintf("no SANDBOX_BACKEND_URL environment and no default defined for project %q", id))
+}
+
+var sandboxBackendOnce struct {
+	sync.Once
+	c *http.Client
+}
+
+func sandboxBackendClient() *http.Client {
+	sandboxBackendOnce.Do(initSandboxBackendClient)
+	return sandboxBackendOnce.c
+}
+
+// initSandboxBackendClient runs from a sync.Once and initializes
+// sandboxBackendOnce.c with the *http.Client we'll use to contact the
+// sandbox execution backend.
+func initSandboxBackendClient() {
+	id, _ := metadata.ProjectID()
+	switch id {
+	case "golang-org":
+		// For production, use a funky Transport dialer that
+		// contacts backend directly, without going through an
+		// internal load balancer, due to internal GCP
+		// reasons, which we might resolve later. This might
+		// be a temporary hack.
+		tr := http.DefaultTransport.(*http.Transport).Clone()
+		rigd := gcpdial.NewRegionInstanceGroupDialer("golang-org", "us-central1", "play-sandbox-rigm")
+		tr.DialContext = func(ctx context.Context, netw, addr string) (net.Conn, error) {
+			if addr == "sandbox.play-sandbox-fwd.il4.us-central1.lb.golang-org.internal:80" {
+				ip, err := rigd.PickIP(ctx)
+				if err != nil {
+					return nil, err
+				}
+				addr = net.JoinHostPort(ip, "80") // and fallthrough
+			}
+			var d net.Dialer
+			return d.DialContext(ctx, netw, addr)
+		}
+		sandboxBackendOnce.c = &http.Client{Transport: tr}
+	default:
+		sandboxBackendOnce.c = http.DefaultClient
+	}
 }
 
 const healthProg = `

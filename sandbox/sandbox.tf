@@ -1,8 +1,6 @@
 # TODO: move the network configuration into terraform too? It was created by hand with:
 # gcloud compute networks subnets update golang --region=us-central1 --enable-private-ip-google-access
 #
-# Likewise, the firewall rules for health checking were created imperatively based on
-# https://cloud.google.com/load-balancing/docs/health-checks#firewall_rules
 
 terraform {
   backend "gcs" {
@@ -47,9 +45,6 @@ resource "google_compute_instance_template" "inst_tmpl" {
   network_interface {
     network = "golang"
   }
-  # Allow both "non-legacy" and "legacy" health checks, so we can change types in the future.
-  # See https://cloud.google.com/load-balancing/docs/health-checks
-  tags = ["allow-health-checks", "allow-network-lb-health-checks"]
   service_account {
     scopes = ["logging-write", "storage-ro"]
   }
@@ -76,7 +71,7 @@ resource "google_compute_region_autoscaler" "default" {
 
   autoscaling_policy {
     max_replicas    = 10
-    min_replicas    = 2
+    min_replicas    = 3
     cooldown_period = 60
 
     cpu_utilization {
@@ -101,49 +96,9 @@ resource "google_compute_region_instance_group_manager" "rigm" {
     name = "http"
     port = 80
   }
-
-  auto_healing_policies {
-    health_check      = "${google_compute_health_check.default.self_link}"
-    initial_delay_sec = 30
-  }
 }
 
 data "google_compute_region_instance_group" "rig" {
   provider  = "google-beta"
   self_link = "${google_compute_region_instance_group_manager.rigm.instance_group}"
-}
-
-resource "google_compute_health_check" "default" {
-  name                = "play-sandbox-rigm-health-check"
-  check_interval_sec  = 5
-  timeout_sec         = 5
-  healthy_threshold   = 2
-  unhealthy_threshold = 10 # 50 seconds
-  http_health_check {
-    request_path = "/healthz"
-    port         = 80
-  }
-}
-
-resource "google_compute_region_backend_service" "default" {
-  name          = "play-sandbox-backend-service"
-  region        = "us-central1"
-  health_checks = ["${google_compute_health_check.default.self_link}"]
-  backend {
-    group = "${data.google_compute_region_instance_group.rig.self_link}"
-  }
-}
-
-resource "google_compute_forwarding_rule" "default" {
-  name                  = "play-sandbox-fwd"
-  region                = "us-central1"
-  network               = "golang"
-  ports                 = ["80"]
-  load_balancing_scheme = "INTERNAL"
-  ip_protocol           = "TCP"
-  backend_service       = "${google_compute_region_backend_service.default.self_link}"
-
-  # Adding a service label gives us a DNS name:
-  # sandbox.play-sandbox-fwd.il4.us-central1.lb.golang-org.internal
-  service_label = "sandbox"
 }

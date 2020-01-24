@@ -96,6 +96,8 @@ func (c *Container) wait() {
 	c.waitVal = c.cmd.Wait()
 }
 
+var httpServer *http.Server
+
 func main() {
 	flag.Parse()
 	if *mode == "contained" {
@@ -132,7 +134,8 @@ func main() {
 
 	go makeWorkers()
 
-	log.Fatal(http.ListenAndServe(*listenAddr, nil))
+	httpServer = &http.Server{Addr: *listenAddr}
+	log.Fatal(httpServer.ListenAndServe())
 }
 
 func handleSignals() {
@@ -142,10 +145,68 @@ func handleSignals() {
 	log.Fatalf("closing on signal %d: %v", s, s)
 }
 
+var healthStatus struct {
+	sync.Mutex
+	lastCheck time.Time
+	lastVal   error
+}
+
+func getHealthCached() error {
+	healthStatus.Lock()
+	defer healthStatus.Unlock()
+	const recentEnough = 5 * time.Second
+	if healthStatus.lastCheck.After(time.Now().Add(-recentEnough)) {
+		return healthStatus.lastVal
+	}
+
+	err := checkHealth()
+	if healthStatus.lastVal == nil && err != nil {
+		// On transition from healthy to unhealthy, close all
+		// idle HTTP connections so clients with them open
+		// don't reuse them. TODO: remove this if/when we
+		// switch away from direct load balancing between
+		// frontends and this sandbox backend.
+		httpServer.SetKeepAlivesEnabled(false) // side effect of closing all idle ones
+		httpServer.SetKeepAlivesEnabled(true)  // and restore it back to normal
+	}
+	healthStatus.lastVal = err
+	healthStatus.lastCheck = time.Now()
+	return err
+}
+
+// checkHealth does a health check, without any caching. It's called via
+// getHealthCached.
+func checkHealth() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	c, err := getContainer(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get a sandbox container: %v", err)
+	}
+	// TODO: execute something too? for now we just check that sandboxed containers
+	// are available.
+	closed := make(chan struct{})
+	go func() {
+		c.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+		// success.
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("timeout closing sandbox container")
+	}
+}
+
 func healthHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: split into liveness & readiness checks?
+	if err := getHealthCached(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "health check failure: %v\n", err)
+		return
+	}
 	io.WriteString(w, "OK\n")
-	// TODO: more? split into liveness & readiness checks? check
-	// number of active/stuck containers, memory?
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
