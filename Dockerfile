@@ -121,6 +121,7 @@ RUN mkdir /app
 COPY --from=build /go/bin/playground /app
 COPY edit.html /app
 COPY static /app/static
+COPY examples /app/examples
 WORKDIR /app
 
 # Whether we allow third-party imports via proxy.golang.org:

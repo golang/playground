@@ -59,6 +59,9 @@ func (s *server) init() {
 
 	staticHandler := http.StripPrefix("/static/", http.FileServer(http.Dir("./static")))
 	s.mux.Handle("/static/", staticHandler)
+
+	examplesHandler := http.StripPrefix("/doc/play/", http.FileServer(http.Dir("./examples")))
+	s.mux.Handle("/doc/play/", examplesHandler)
 }
 
 func (s *server) handlePlaygroundJS(w http.ResponseWriter, r *http.Request) {

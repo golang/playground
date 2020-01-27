@@ -31,7 +31,8 @@
 				{{end}}
 				'enableHistory': true,
 				'enableShortcuts': true,
-				'enableVet': true
+				'enableVet': true,
+				'toysEl': '.js-playgroundToysEl'
 			});
 			playgroundEmbed({
 				'codeEl':       '#code',
@@ -120,6 +121,14 @@
 					embed
 				</label>
 				{{end}}
+				<select class="js-playgroundToysEl">
+					<option value="hello.txt">Hello, playground</option>
+					<option value="test.txt">Tests</option>
+					<option value="multi.txt">Multiple files</option>
+					<option value="image.txt">Display image</option>
+					<option value="sleep.txt">Sleep</option>
+					<option value="clear.txt">Clear</option>
+				</select>
 			</div>
 			<div id="aboutControls">
 				<input type="button" value="About" id="aboutButton">

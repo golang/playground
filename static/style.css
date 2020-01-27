@@ -174,3 +174,9 @@ input[type=button],
 	top: 10px;
 	right: 10px;
 }
+
+#controls select {
+	font-size: 0.875rem;
+	border: 0.0625rem solid #375EAB;
+	margin: 0;
+}
