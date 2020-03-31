@@ -12,24 +12,20 @@ docker:
 runlocal:
 	docker network create sandnet || true
 	docker kill play_dev || true
-	docker run --name=play_dev --rm --network=sandnet --env SANDBOX_BACKEND_URL="http://sandbox_dev.sandnet/run" -ti -p 127.0.0.1:8081:8080/tcp golang/playground
+	docker run --name=play_dev --rm --network=sandnet -ti -p 127.0.0.1:8081:8080/tcp golang/playground --backend-url="http://sandbox_dev.sandnet/run"
 
 test_go:
 	# Run fast tests first: (and tests whether, say, things compile)
 	GO111MODULE=on go test -v
 
-test_nacl: docker
-	docker kill sandbox_front_test || true
-	docker run --rm --name=sandbox_front_test --network=sandnet -t golang/playground testnacl
-
 test_gvisor: docker
 	docker kill sandbox_front_test || true
-	docker run --rm --name=sandbox_front_test --network=sandnet -t golang/playground test
+	docker run --rm --name=sandbox_front_test --network=sandnet -t golang/playground --runtests
 
 # Note: test_gvisor is not included in "test" yet, because it requires
 # running a separate server first ("make runlocal" in the sandbox
 # directory)
-test: test_go test_nacl
+test: test_go
 
 update-cloudbuild-trigger:
 	# The gcloud CLI doesn't yet support updating a trigger.

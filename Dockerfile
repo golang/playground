@@ -4,14 +4,6 @@
 
 ARG GO_VERSION=go1.14.1
 
-############################################################################
-FROM debian:buster AS nacl
-
-RUN apt-get update && apt-get install -y --no-install-recommends curl bzip2 ca-certificates
-
-RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/trunk.544461/naclsdk_linux.tar.bz2 | tar -xj -C /tmp --strip-components=2 pepper_67/tools/sel_ldr_x86_64
-
-############################################################################
 FROM debian:buster AS build
 LABEL maintainer="golang-dev@googlegroups.com"
 
@@ -20,69 +12,38 @@ RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
-ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV GO_BOOTSTRAP_VERSION go1.13.9
+ENV GO_BOOTSTRAP_VERSION go1.14.1
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
 
-# Fake time
-COPY enable-fake-time.patch /usr/local/playground/
-# Fake file system
-COPY fake_fs.lst /usr/local/playground/
-
-# Get a bootstrap version of Go for building from source.
+# Get a version of Go for building the playground
 RUN curl -sSL https://dl.google.com/go/$GO_BOOTSTRAP_VERSION.linux-amd64.tar.gz -o /tmp/go.tar.gz
 RUN curl -sSL https://dl.google.com/go/$GO_BOOTSTRAP_VERSION.linux-amd64.tar.gz.sha256 -o /tmp/go.tar.gz.sha256
 RUN echo "$(cat /tmp/go.tar.gz.sha256) /tmp/go.tar.gz" | sha256sum -c -
-RUN mkdir -p $GOROOT_BOOTSTRAP
-RUN tar --strip=1 -C $GOROOT_BOOTSTRAP -vxzf /tmp/go.tar.gz
-
-# Fetch Go source for tag $GO_VERSION.
-RUN git clone --depth=1 --branch=$GO_BOOTSTRAP_VERSION https://go.googlesource.com/go /usr/local/go
-# Apply the fake time and fake filesystem patches.
-RUN patch /usr/local/go/src/runtime/rt0_nacl_amd64p32.s /usr/local/playground/enable-fake-time.patch
-RUN cd /usr/local/go && $GOROOT_BOOTSTRAP/bin/go run misc/nacl/mkzip.go -p syscall /usr/local/playground/fake_fs.lst src/syscall/fstest_nacl.go
-# Build the Go toolchain.
-RUN cd /usr/local/go/src && GOOS=nacl GOARCH=amd64p32 ./make.bash --no-clean
+RUN mkdir -p /usr/local/go
+RUN tar --strip=1 -C /usr/local/go -vxzf /tmp/go.tar.gz
 
 RUN mkdir /gocache
 ENV GOCACHE /gocache
 ENV GO111MODULE on
 ENV GOPROXY=https://proxy.golang.org
 
+# Compile Go at target sandbox version and install standard library with --tags=faketime.
+WORKDIR /usr/local
+RUN git clone https://go.googlesource.com/go go-faketime && cd go-faketime && git reset --hard $GO_VERSION
+WORKDIR /usr/local/go-faketime/src
+RUN ./make.bash
+ENV GOROOT /usr/local/go-faketime
+RUN ../bin/go install --tags=faketime std
+
 COPY go.mod /go/src/playground/go.mod
 COPY go.sum /go/src/playground/go.sum
 WORKDIR /go/src/playground
-
-# Pre-build some packages to speed final install later.
-RUN go install cloud.google.com/go/compute/metadata
-RUN go install cloud.google.com/go/datastore
-RUN go install github.com/bradfitz/gomemcache/memcache
-RUN go install golang.org/x/tools/godoc/static
-RUN go install golang.org/x/tools/imports
-RUN go install github.com/rogpeppe/go-internal/modfile
-RUN go install github.com/rogpeppe/go-internal/txtar
+RUN go mod download
 
 # Add and compile playground daemon
 COPY . /go/src/playground/
-WORKDIR /go/src/playground
 RUN go install
-
-############################################################################
-# Temporary Docker stage to add a pre-Go1.14 $GOROOT into our
-# container for early linux/amd64 testing.
-FROM golang:1.13 AS temp_pre_go14
-
-ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
-RUN apt-get update && apt-get install -y --no-install-recommends ${BUILD_DEPS}
-
-ARG GO_VERSION
-ENV GO_VERSION ${GO_VERSION}
-RUN cd /usr/local && git clone https://go.googlesource.com/go go1.14 && cd go1.14 && git reset --hard $GO_VERSION
-WORKDIR /usr/local/go1.14/src
-RUN ./make.bash
-ENV GOROOT /usr/local/go1.14
-RUN ../bin/go install --tags=faketime std
 
 ############################################################################
 # Final stage.
@@ -90,17 +51,15 @@ FROM debian:buster
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
-COPY --from=build /usr/local/go /usr/local/go
-COPY --from=nacl /tmp/sel_ldr_x86_64 /usr/local/bin
-COPY --from=temp_pre_go14 /usr/local/go1.14 /usr/local/go1.14
+COPY --from=build /usr/local/go-faketime /usr/local/go-faketime
 
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
 ENV GOPATH /go
-ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
+ENV PATH /usr/local/go-faketime/bin:$GOPATH/bin:$PATH
 
 # Add and compile tour packages
-RUN GOOS=nacl GOARCH=amd64p32 go get \
+RUN go get \
     golang.org/x/tour/pic \
     golang.org/x/tour/reader \
     golang.org/x/tour/tree \

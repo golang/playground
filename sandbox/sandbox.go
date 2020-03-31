@@ -255,27 +255,12 @@ func runInGvisor() {
 		log.Fatalf("writing header to stderr: %v", err)
 	}
 
-	// As part of a temporary transition plan, we also support
-	// running nacl binaries in this sandbox. The point isn't to
-	// double sandbox things as much as it is to let us transition
-	// things in steps: first to split the sandbox into two parts
-	// (frontend & backend), and then to change the type of binary
-	// (nacl to linux/amd64). This means we can do step 1 of the
-	// migration during the Go 1.13 dev cycle and have less
-	// risk/rush during the Go 1.14 release, which should just be
-	// a flag flip.
-	// This isn't a perfect heuristic, but it works and it's cheap:
-	isNacl := bytes.Contains(slurp, []byte("_rt0_amd64p32_nacl"))
-
 	cmd := exec.Command(binPath)
-	if isNacl {
-		cmd = exec.Command("/usr/local/bin/sel_ldr_x86_64", "-l", "/dev/null", "-S", "-e", binPath)
-	}
 	cmd.Args = append(cmd.Args, meta.Args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("cmd.Start(): %v", err)
 	}
 	err = cmd.Wait()
 	os.Remove(binPath) // not that it matters much, this container will be nuked

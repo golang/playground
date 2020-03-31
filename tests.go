@@ -27,12 +27,6 @@ type compileTest struct {
 	wantVetErrors      string
 }
 
-func (s *server) testNacl() {
-	log.Printf("testing nacl mode")
-	os.Setenv("GO_VERSION", "")
-	s.runTests()
-}
-
 func (s *server) test() {
 	if _, err := net.ResolveIPAddr("ip", "sandbox_dev.sandnet."); err != nil {
 		log.Fatalf("sandbox_dev.sandnet not available")

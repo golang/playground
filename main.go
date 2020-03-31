@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -16,7 +17,13 @@ import (
 
 var log = newStdLogger()
 
+var (
+	runtests   = flag.Bool("runtests", false, "Run integration tests instead of Playground server.")
+	backendURL = flag.String("backend-url", "", "URL for sandbox backend that runs Go binaries.")
+)
+
 func main() {
+	flag.Parse()
 	s, err := newServer(func(s *server) error {
 		pid := projectID()
 		if pid == "" {
@@ -41,13 +48,13 @@ func main() {
 		log.Fatalf("Error creating server: %v", err)
 	}
 
-	if len(os.Args) > 1 && os.Args[1] == "test" {
+	if *runtests {
 		s.test()
 		return
 	}
-	if len(os.Args) > 1 && os.Args[1] == "testnacl" {
-		s.testNacl()
-		return
+	if *backendURL != "" {
+		// TODO(golang.org/issue/25224) - Remove environment variable and use a flag.
+		os.Setenv("SANDBOX_BACKEND_URL", *backendURL)
 	}
 
 	port := os.Getenv("PORT")

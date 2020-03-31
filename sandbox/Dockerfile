@@ -4,7 +4,7 @@
 # environment so the play-sandbox server can connect to the host's
 # docker daemon, which has the gvisor "runsc" runtime available.
 
-FROM golang:1.13 AS build
+FROM golang:1.14 AS build
 
 COPY . /go/src/playground
 WORKDIR /go/src/playground/sandbox
@@ -15,7 +15,7 @@ FROM debian:buster
 RUN apt-get update
 
 # Extra stuff for occasional debugging:
-RUN apt-get install --yes strace lsof emacs25-nox net-tools tcpdump procps
+RUN apt-get install --yes strace lsof emacs-nox net-tools tcpdump procps
 
 # Install Docker CLI:
 RUN apt-get install --yes \

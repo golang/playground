@@ -373,42 +373,22 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 		}
 	}
 
-	// TODO: simplify this once Go 1.14 is out. We should remove
-	// the //play:gvisor substring hack and DEBUG_FORCE_GVISOR and
-	// instead implement https://golang.org/issue/33629 to
-	// officially support different Go versions (Go tip + past two
-	// releases).
-	useGvisor := os.Getenv("GO_VERSION") >= "go1.14" ||
-		os.Getenv("DEBUG_FORCE_GVISOR") == "1" ||
-		strings.Contains(req.Body, "//play:gvisor\n")
-
 	exe := filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
 
 	buildCtx, cancel := context.WithTimeout(ctx, maxCompileTime)
 	defer cancel()
-	goBin := "go"
-	if useGvisor {
-		goBin = "/usr/local/go1.14/bin/go"
-	}
-	cmd := exec.CommandContext(buildCtx, goBin,
-		"build",
-		"-o", exe,
-		"-tags=faketime", // required for Go 1.14+, no-op before
-		buildPkgArg)
+	cmd := exec.CommandContext(ctx, "/usr/local/go-faketime/bin/go", "build", "-o", exe, "-tags=faketime", buildPkgArg)
 	cmd.Dir = tmpDir
 	var goPath string
-	if useGvisor {
-		cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go1.14"}
-	} else {
-		cmd.Env = []string{"GOOS=nacl", "GOARCH=amd64p32"}
-	}
+	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}
 	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
 	if useModules {
 		// Create a GOPATH just for modules to be downloaded
 		// into GOPATH/pkg/mod.
 		goPath, err = ioutil.TempDir("", "gopath")
 		if err != nil {
+			log.Printf("error creating temp directory: %v", err)
 			return nil, fmt.Errorf("error creating temp directory: %v", err)
 		}
 		defer os.RemoveAll(goPath)
@@ -438,72 +418,53 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 		}
 		return nil, fmt.Errorf("error building go source: %v", err)
 	}
-	runCtx, cancel := context.WithTimeout(ctx, maxRunTime)
-	defer cancel()
 	rec := new(Recorder)
 	var exitCode int
-	if useGvisor {
-		const maxBinarySize = 100 << 20 // copied from sandbox backend; TODO: unify?
-		if fi, err := os.Stat(exe); err != nil || fi.Size() == 0 || fi.Size() > maxBinarySize {
-			if err != nil {
-				return nil, fmt.Errorf("failed to stat binary: %v", err)
-			}
-			return nil, fmt.Errorf("invalid binary size %d", fi.Size())
-		}
-		exeBytes, err := ioutil.ReadFile(exe)
+	const maxBinarySize = 100 << 20 // copied from sandbox backend; TODO: unify?
+	if fi, err := os.Stat(exe); err != nil || fi.Size() == 0 || fi.Size() > maxBinarySize {
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to stat binary: %v", err)
 		}
-		req, err := http.NewRequestWithContext(runCtx, "POST", sandboxBackendURL(), bytes.NewReader(exeBytes))
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Add("Idempotency-Key", "1") // lets Transport do retries with a POST
-		if testParam != "" {
-			req.Header.Add("X-Argument", testParam)
-		}
-		req.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(exeBytes)), nil }
-		res, err := sandboxBackendClient().Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("unexpected response from backend: %v", res.Status)
-		}
-		var execRes sandboxtypes.Response
-		if err := json.NewDecoder(res.Body).Decode(&execRes); err != nil {
-			log.Printf("JSON decode error from backend: %v", err)
-			return nil, errors.New("error parsing JSON from backend")
-		}
-		if execRes.Error != "" {
-			return &response{Errors: execRes.Error}, nil
-		}
-		exitCode = execRes.ExitCode
-		rec.Stdout().Write(execRes.Stdout)
-		rec.Stderr().Write(execRes.Stderr)
-	} else {
-		cmd := exec.CommandContext(runCtx, "sel_ldr_x86_64", "-l", "/dev/null", "-S", "-e", exe, testParam)
-		cmd.Stdout = rec.Stdout()
-		cmd.Stderr = rec.Stderr()
-		if err := cmd.Run(); err != nil {
-			if runCtx.Err() == context.DeadlineExceeded {
-				// Send what was captured before the timeout.
-				events, err := rec.Events()
-				if err != nil {
-					return nil, fmt.Errorf("error decoding events: %v", err)
-				}
-				return &response{Errors: "process took too long", Events: events}, nil
-			}
-			exitErr, ok := err.(*exec.ExitError)
-			if !ok {
-				return nil, fmt.Errorf("error running sandbox: %v", err)
-			}
-			exitCode = exitErr.ExitCode()
-		}
+		return nil, fmt.Errorf("invalid binary size %d", fi.Size())
 	}
+	exeBytes, err := ioutil.ReadFile(exe)
+	if err != nil {
+		return nil, err
+	}
+	runCtx, cancel := context.WithTimeout(ctx, maxRunTime)
+	defer cancel()
+	sreq, err := http.NewRequestWithContext(runCtx, "POST", sandboxBackendURL(), bytes.NewReader(exeBytes))
+	if err != nil {
+		return nil, fmt.Errorf("NewRequestWithContext %q: %w", sandboxBackendURL(), err)
+	}
+	sreq.Header.Add("Idempotency-Key", "1") // lets Transport do retries with a POST
+	if testParam != "" {
+		sreq.Header.Add("X-Argument", testParam)
+	}
+	sreq.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(exeBytes)), nil }
+	res, err := sandboxBackendClient().Do(sreq)
+	if err != nil {
+		return nil, fmt.Errorf("POST %q: %w", sandboxBackendURL(), err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		log.Printf("unexpected response from backend: %v", res.Status)
+		return nil, fmt.Errorf("unexpected response from backend: %v", res.Status)
+	}
+	var execRes sandboxtypes.Response
+	if err := json.NewDecoder(res.Body).Decode(&execRes); err != nil {
+		log.Printf("JSON decode error from backend: %v", err)
+		return nil, errors.New("error parsing JSON from backend")
+	}
+	if execRes.Error != "" {
+		return &response{Errors: execRes.Error}, nil
+	}
+	exitCode = execRes.ExitCode
+	rec.Stdout().Write(execRes.Stdout)
+	rec.Stderr().Write(execRes.Stderr)
 	events, err := rec.Events()
 	if err != nil {
+		log.Printf("error decoding events: %v", err)
 		return nil, fmt.Errorf("error decoding events: %v", err)
 	}
 	var fails int
