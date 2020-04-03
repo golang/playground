@@ -3,14 +3,14 @@
 # license that can be found in the LICENSE file.
 
 ############################################################################
-FROM debian:stretch AS nacl
+FROM debian:buster AS nacl
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl bzip2 ca-certificates
 
 RUN curl -s https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/trunk.544461/naclsdk_linux.tar.bz2 | tar -xj -C /tmp --strip-components=2 pepper_67/tools/sel_ldr_x86_64
 
 ############################################################################
-FROM debian:stretch AS build
+FROM debian:buster AS build
 LABEL maintainer="golang-dev@googlegroups.com"
 
 ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
@@ -82,7 +82,7 @@ RUN ../bin/go install --tags=faketime std
 
 ############################################################################
 # Final stage.
-FROM debian:stretch
+FROM debian:buster
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
