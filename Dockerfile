@@ -19,8 +19,8 @@ RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
-ENV GO_BOOTSTRAP_VERSION go1.13
-ARG GO_VERSION=go1.13
+ENV GO_BOOTSTRAP_VERSION go1.13.9
+ARG GO_VERSION=go1.14.1
 ENV GO_VERSION ${GO_VERSION}
 
 # Fake time
@@ -36,7 +36,7 @@ RUN mkdir -p $GOROOT_BOOTSTRAP
 RUN tar --strip=1 -C $GOROOT_BOOTSTRAP -vxzf /tmp/go.tar.gz
 
 # Fetch Go source for tag $GO_VERSION.
-RUN git clone --depth=1 --branch=$GO_VERSION https://go.googlesource.com/go /usr/local/go
+RUN git clone --depth=1 --branch=$GO_BOOTSTRAP_VERSION https://go.googlesource.com/go /usr/local/go
 # Apply the fake time and fake filesystem patches.
 RUN patch /usr/local/go/src/runtime/rt0_nacl_amd64p32.s /usr/local/playground/enable-fake-time.patch
 RUN cd /usr/local/go && $GOROOT_BOOTSTRAP/bin/go run misc/nacl/mkzip.go -p syscall /usr/local/playground/fake_fs.lst src/syscall/fstest_nacl.go
@@ -74,10 +74,7 @@ FROM golang:1.13 AS temp_pre_go14
 ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
 RUN apt-get update && apt-get install -y --no-install-recommends ${BUILD_DEPS}
 
-# go1.14beta1:
-ENV GO_REV a5bfd9da1d1b24f326399b6b75558ded14514f23
-
-RUN cd /usr/local && git clone https://go.googlesource.com/go go1.14 && cd go1.14 && git reset --hard ${GO_REV}
+RUN cd /usr/local && git clone https://go.googlesource.com/go go1.14 && cd go1.14 && git reset --hard $GO_VERSION
 WORKDIR /usr/local/go1.14/src
 RUN ./make.bash
 ENV GOROOT /usr/local/go1.14
