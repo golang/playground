@@ -40,7 +40,7 @@ import (
 
 const (
 	maxCompileTime = 5 * time.Second
-	maxRunTime     = 2 * time.Second
+	maxRunTime     = 5 * time.Second
 
 	// progName is the implicit program name written to the temp
 	// dir and used in compiler and vet errors.
@@ -420,7 +420,7 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 	cmd.Env = append(cmd.Env, "GOPATH="+goPath)
 	t0 := time.Now()
 	if out, err := cmd.CombinedOutput(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if buildCtx.Err() == context.DeadlineExceeded {
 			log.Printf("go build timed out after %v", time.Since(t0))
 			return &response{Errors: goBuildTimeoutError}, nil
 		}
@@ -454,7 +454,7 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequestWithContext(ctx, "POST", sandboxBackendURL(), bytes.NewReader(exeBytes))
+		req, err := http.NewRequestWithContext(runCtx, "POST", sandboxBackendURL(), bytes.NewReader(exeBytes))
 		if err != nil {
 			return nil, err
 		}
@@ -487,7 +487,7 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 		cmd.Stdout = rec.Stdout()
 		cmd.Stderr = rec.Stderr()
 		if err := cmd.Run(); err != nil {
-			if ctx.Err() == context.DeadlineExceeded {
+			if runCtx.Err() == context.DeadlineExceeded {
 				// Send what was captured before the timeout.
 				events, err := rec.Events()
 				if err != nil {
