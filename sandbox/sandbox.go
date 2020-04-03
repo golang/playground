@@ -358,7 +358,7 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 	cmd := exec.Command("docker", "run",
 		"--name="+name,
 		"--rm",
-		"--tmpfs=/tmpfs",
+		"--tmpfs=/tmpfs:exec",
 		"-i", // read stdin
 
 		"--runtime=runsc",

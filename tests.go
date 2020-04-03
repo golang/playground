@@ -264,7 +264,6 @@ func main() {
 			}
 			for _, expect := range []string{
 				"/.dockerenv",
-				"/__runsc_containers__",
 				"/etc/hostname",
 				"/dev/zero",
 				"/lib/ld-linux-x86-64.so.2",
