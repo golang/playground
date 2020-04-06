@@ -328,24 +328,95 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	files, err := splitFiles([]byte(req.Body))
+	br, err := sandboxBuild(ctx, tmpDir, []byte(req.Body), req.WithVet)
 	if err != nil {
-		return &response{Errors: err.Error()}, nil
+		return nil, err
+	}
+	if br.errorMessage != "" {
+		return &response{Errors: br.errorMessage}, nil
 	}
 
-	var testParam string
+	execRes, err := sandboxRun(ctx, br.exePath, br.testParam)
+	if err != nil {
+		return nil, err
+	}
+	if execRes.Error != "" {
+		return &response{Errors: execRes.Error}, nil
+	}
+
+	rec := new(Recorder)
+	rec.Stdout().Write(execRes.Stdout)
+	rec.Stderr().Write(execRes.Stderr)
+	events, err := rec.Events()
+	if err != nil {
+		log.Printf("error decoding events: %v", err)
+		return nil, fmt.Errorf("error decoding events: %v", err)
+	}
+	var fails int
+	if br.testParam != "" {
+		// In case of testing the TestsFailed field contains how many tests have failed.
+		for _, e := range events {
+			fails += strings.Count(e.Message, failedTestPattern)
+		}
+	}
+	return &response{
+		Events:      events,
+		Status:      execRes.ExitCode,
+		IsTest:      br.testParam != "",
+		TestsFailed: fails,
+		VetErrors:   br.vetOut,
+		VetOK:       req.WithVet && br.vetOut == "",
+	}, nil
+}
+
+// buildResult is the output of a sandbox build attempt.
+type buildResult struct {
+	// goPath is a temporary directory if the binary was built with module support.
+	// TODO(golang.org/issue/25224) - Why is the module mode built so differently?
+	goPath string
+	// exePath is the path to the built binary.
+	exePath string
+	// useModules is true if the binary was built with module support.
+	useModules bool
+	// testParam is set if tests should be run when running the binary.
+	testParam string
+	// errorMessage is an error message string to be returned to the user.
+	errorMessage string
+	// vetOut is the output of go vet, if requested.
+	vetOut string
+}
+
+// cleanup cleans up the temporary goPath created when building with module support.
+func (b *buildResult) cleanup() error {
+	if b.useModules && b.goPath != "" {
+		return os.RemoveAll(b.goPath)
+	}
+	return nil
+}
+
+// sandboxBuild builds a Go program and returns a build result that includes the build context.
+//
+// An error is returned if a non-user-correctable error has occurred.
+func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*buildResult, error) {
+	files, err := splitFiles(in)
+	if err != nil {
+		return &buildResult{errorMessage: err.Error()}, nil
+	}
+
+	br := new(buildResult)
+	defer br.cleanup()
 	var buildPkgArg = "."
 	if files.Num() == 1 && len(files.Data(progName)) > 0 {
 		buildPkgArg = progName
 		src := files.Data(progName)
 		if code := getTestProg(src); code != nil {
-			testParam = "-test.v"
+			br.testParam = "-test.v"
 			files.AddFile(progName, code)
 		}
 	}
 
-	useModules := allowModuleDownloads(files)
-	if !files.Contains("go.mod") && useModules {
+	br.useModules = allowModuleDownloads(files)
+	if !files.Contains("go.mod") && br.useModules {
 		files.AddFile("go.mod", []byte("module play\n"))
 	}
 
@@ -358,7 +429,7 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 			fset := token.NewFileSet()
 			f, err := parser.ParseFile(fset, f, src, parser.PackageClauseOnly)
 			if err == nil && f.Name.Name != "main" {
-				return &response{Errors: "package name must be main"}, nil
+				return &buildResult{errorMessage: "package name must be main"}, nil
 			}
 		}
 
@@ -373,69 +444,80 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 		}
 	}
 
-	exe := filepath.Join(tmpDir, "a.out")
+	br.exePath = filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
 
-	buildCtx, cancel := context.WithTimeout(ctx, maxCompileTime)
+	ctx, cancel := context.WithTimeout(ctx, maxCompileTime)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "/usr/local/go-faketime/bin/go", "build", "-o", exe, "-tags=faketime", buildPkgArg)
+	cmd := exec.CommandContext(ctx, "/usr/local/go-faketime/bin/go", "build", "-o", br.exePath, "-tags=faketime")
 	cmd.Dir = tmpDir
-	var goPath string
 	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}
 	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
-	if useModules {
+	if br.useModules {
 		// Create a GOPATH just for modules to be downloaded
 		// into GOPATH/pkg/mod.
-		goPath, err = ioutil.TempDir("", "gopath")
+		cmd.Args = append(cmd.Args, "-modcacherw")
+		br.goPath, err = ioutil.TempDir("", "gopath")
 		if err != nil {
 			log.Printf("error creating temp directory: %v", err)
 			return nil, fmt.Errorf("error creating temp directory: %v", err)
 		}
-		defer os.RemoveAll(goPath)
 		cmd.Env = append(cmd.Env, "GO111MODULE=on", "GOPROXY="+playgroundGoproxy())
 	} else {
-		goPath = os.Getenv("GOPATH")                 // contains old code.google.com/p/go-tour, etc
+		br.goPath = os.Getenv("GOPATH")              // contains old code.google.com/p/go-tour, etc
 		cmd.Env = append(cmd.Env, "GO111MODULE=off") // in case it becomes on by default later
 	}
-	cmd.Env = append(cmd.Env, "GOPATH="+goPath)
+	cmd.Args = append(cmd.Args, buildPkgArg)
+	cmd.Env = append(cmd.Env, "GOPATH="+br.goPath)
 	t0 := time.Now()
 	if out, err := cmd.CombinedOutput(); err != nil {
-		if buildCtx.Err() == context.DeadlineExceeded {
+		if ctx.Err() == context.DeadlineExceeded {
 			log.Printf("go build timed out after %v", time.Since(t0))
-			return &response{Errors: goBuildTimeoutError}, nil
+			return &buildResult{errorMessage: goBuildTimeoutError}, nil
 		}
 		if _, ok := err.(*exec.ExitError); ok {
 			// Return compile errors to the user.
 
 			// Rewrite compiler errors to strip the tmpDir name.
-			errs := strings.Replace(string(out), tmpDir+"/", "", -1)
+			br.errorMessage = strings.Replace(string(out), tmpDir+"/", "", -1)
 
 			// "go build", invoked with a file name, puts this odd
 			// message before any compile errors; strip it.
-			errs = strings.Replace(errs, "# command-line-arguments\n", "", 1)
+			br.errorMessage = strings.Replace(br.errorMessage, "# command-line-arguments\n", "", 1)
 
-			return &response{Errors: errs}, nil
+			return br, nil
 		}
 		return nil, fmt.Errorf("error building go source: %v", err)
 	}
-	rec := new(Recorder)
-	var exitCode int
 	const maxBinarySize = 100 << 20 // copied from sandbox backend; TODO: unify?
-	if fi, err := os.Stat(exe); err != nil || fi.Size() == 0 || fi.Size() > maxBinarySize {
+	if fi, err := os.Stat(br.exePath); err != nil || fi.Size() == 0 || fi.Size() > maxBinarySize {
 		if err != nil {
 			return nil, fmt.Errorf("failed to stat binary: %v", err)
 		}
 		return nil, fmt.Errorf("invalid binary size %d", fi.Size())
 	}
-	exeBytes, err := ioutil.ReadFile(exe)
-	if err != nil {
-		return nil, err
+	if vet {
+		// TODO: do this concurrently with the execution to reduce latency.
+		br.vetOut, err = vetCheckInDir(tmpDir, br.goPath, br.useModules)
+		if err != nil {
+			return nil, fmt.Errorf("running vet: %v", err)
+		}
 	}
-	runCtx, cancel := context.WithTimeout(ctx, maxRunTime)
-	defer cancel()
-	sreq, err := http.NewRequestWithContext(runCtx, "POST", sandboxBackendURL(), bytes.NewReader(exeBytes))
+	return br, nil
+}
+
+// sandboxRun runs a Go binary in a sandbox environment.
+func sandboxRun(ctx context.Context, exePath string, testParam string) (sandboxtypes.Response, error) {
+	var execRes sandboxtypes.Response
+	exeBytes, err := ioutil.ReadFile(exePath)
 	if err != nil {
-		return nil, fmt.Errorf("NewRequestWithContext %q: %w", sandboxBackendURL(), err)
+		return execRes, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, maxRunTime)
+	defer cancel()
+	sreq, err := http.NewRequestWithContext(ctx, "POST", sandboxBackendURL(), bytes.NewReader(exeBytes))
+	if err != nil {
+		return execRes, fmt.Errorf("NewRequestWithContext %q: %w", sandboxBackendURL(), err)
 	}
 	sreq.Header.Add("Idempotency-Key", "1") // lets Transport do retries with a POST
 	if testParam != "" {
@@ -444,52 +526,18 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 	sreq.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(exeBytes)), nil }
 	res, err := sandboxBackendClient().Do(sreq)
 	if err != nil {
-		return nil, fmt.Errorf("POST %q: %w", sandboxBackendURL(), err)
+		return execRes, fmt.Errorf("POST %q: %w", sandboxBackendURL(), err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		log.Printf("unexpected response from backend: %v", res.Status)
-		return nil, fmt.Errorf("unexpected response from backend: %v", res.Status)
+		return execRes, fmt.Errorf("unexpected response from backend: %v", res.Status)
 	}
-	var execRes sandboxtypes.Response
 	if err := json.NewDecoder(res.Body).Decode(&execRes); err != nil {
 		log.Printf("JSON decode error from backend: %v", err)
-		return nil, errors.New("error parsing JSON from backend")
+		return execRes, errors.New("error parsing JSON from backend")
 	}
-	if execRes.Error != "" {
-		return &response{Errors: execRes.Error}, nil
-	}
-	exitCode = execRes.ExitCode
-	rec.Stdout().Write(execRes.Stdout)
-	rec.Stderr().Write(execRes.Stderr)
-	events, err := rec.Events()
-	if err != nil {
-		log.Printf("error decoding events: %v", err)
-		return nil, fmt.Errorf("error decoding events: %v", err)
-	}
-	var fails int
-	if testParam != "" {
-		// In case of testing the TestsFailed field contains how many tests have failed.
-		for _, e := range events {
-			fails += strings.Count(e.Message, failedTestPattern)
-		}
-	}
-	var vetOut string
-	if req.WithVet {
-		// TODO: do this concurrently with the execution to reduce latency.
-		vetOut, err = vetCheckInDir(tmpDir, goPath, useModules)
-		if err != nil {
-			return nil, fmt.Errorf("running vet: %v", err)
-		}
-	}
-	return &response{
-		Events:      events,
-		Status:      exitCode,
-		IsTest:      testParam != "",
-		TestsFailed: fails,
-		VetErrors:   vetOut,
-		VetOK:       req.WithVet && vetOut == "",
-	}, nil
+	return execRes, nil
 }
 
 // allowModuleDownloads reports whether the code snippet in src should be allowed
