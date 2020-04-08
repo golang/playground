@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/compute/v1"
 )
 
 type Dialer struct {
@@ -188,46 +188,58 @@ func (d *Dialer) pickIP() (string, bool) {
 }
 
 func (d *Dialer) poll() {
+	// TODO(golang.org/issue/38315) - Plumb a context in here correctly
+	ctx := context.TODO()
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		res, err := d.lister.ListInstances(ctx)
-		cancel()
-		if err != nil {
-			log.Printf("gcpdial: polling %v: %v", d.lister, err)
-			time.Sleep(10 * time.Second)
+		d.pollOnce(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+func (d *Dialer) pollOnce(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	res, err := d.lister.ListInstances(ctx)
+	cancel()
+	if err != nil {
+		log.Printf("gcpdial: polling %v: %v", d.lister, err)
+		return
+	}
+
+	want := map[string]bool{} // the res []string turned into a set
+	for _, instURL := range res {
+		want[instURL] = true
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	// Stop + remove any health check probers that no longer appear in the
+	// instance group.
+	for instURL, prober := range d.prober {
+		if !want[instURL] {
+			prober.cancel()
+			delete(d.prober, instURL)
+		}
+	}
+	// And start any new health check probers that are newly added
+	// (or newly known at least) to the instance group.
+	for _, instURL := range res {
+		if _, ok := d.prober[instURL]; ok {
 			continue
 		}
-
-		want := map[string]bool{} // the res []string turned into a set
-		for _, instURL := range res {
-			want[instURL] = true
+		p := newProber(d, instURL)
+		go p.probeLoop()
+		if d.prober == nil {
+			d.prober = map[string]*prober{}
 		}
-
-		d.mu.Lock()
-		// Stop + remove any health check probers that no longer appear in the
-		// instance group.
-		for instURL, prober := range d.prober {
-			if !want[instURL] {
-				prober.cancel()
-				delete(d.prober, instURL)
-			}
-		}
-		// And start any new health check probers that are newly added
-		// (or newly known at least) to the instance group.
-		for _, instURL := range res {
-			if _, ok := d.prober[instURL]; ok {
-				continue
-			}
-			p := newProber(d, instURL)
-			go p.probeLoop()
-			if d.prober == nil {
-				d.prober = map[string]*prober{}
-			}
-			d.prober[instURL] = p
-		}
-		d.lastInstances = res
-		d.mu.Unlock()
+		d.prober[instURL] = p
 	}
+	d.lastInstances = res
 }
 
 // NewRegionInstanceGroupDialer returns a new dialer that dials named
