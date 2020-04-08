@@ -12,7 +12,7 @@ docker:
 runlocal:
 	docker network create sandnet || true
 	docker kill play_dev || true
-	docker run --name=play_dev --rm --network=sandnet -ti -p 127.0.0.1:8081:8080/tcp golang/playground
+	docker run --name=play_dev --rm --network=sandnet --env SANDBOX_BACKEND_URL="http://sandbox_dev.sandnet/run" -ti -p 127.0.0.1:8081:8080/tcp golang/playground
 
 test_go:
 	# Run fast tests first: (and tests whether, say, things compile)

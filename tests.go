@@ -29,6 +29,7 @@ type compileTest struct {
 
 func (s *server) testNacl() {
 	log.Printf("testing nacl mode")
+	os.Setenv("GO_VERSION", "")
 	s.runTests()
 }
 

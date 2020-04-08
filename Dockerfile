@@ -22,6 +22,7 @@ ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
 ENV GO_BOOTSTRAP_VERSION go1.13.9
+ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
 
 # Fake time
@@ -93,6 +94,8 @@ COPY --from=build /usr/local/go /usr/local/go
 COPY --from=nacl /tmp/sel_ldr_x86_64 /usr/local/bin
 COPY --from=temp_pre_go14 /usr/local/go1.14 /usr/local/go1.14
 
+ARG GO_VERSION
+ENV GO_VERSION ${GO_VERSION}
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 
