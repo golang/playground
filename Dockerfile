@@ -2,6 +2,8 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
+ARG GO_VERSION=go1.14.1
+
 ############################################################################
 FROM debian:buster AS nacl
 
@@ -20,7 +22,6 @@ ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GOROOT_BOOTSTRAP /usr/local/gobootstrap
 ENV GO_BOOTSTRAP_VERSION go1.13.9
-ARG GO_VERSION=go1.14.1
 ENV GO_VERSION ${GO_VERSION}
 
 # Fake time
@@ -74,6 +75,8 @@ FROM golang:1.13 AS temp_pre_go14
 ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
 RUN apt-get update && apt-get install -y --no-install-recommends ${BUILD_DEPS}
 
+ARG GO_VERSION
+ENV GO_VERSION ${GO_VERSION}
 RUN cd /usr/local && git clone https://go.googlesource.com/go go1.14 && cd go1.14 && git reset --hard $GO_VERSION
 WORKDIR /usr/local/go1.14/src
 RUN ./make.bash
