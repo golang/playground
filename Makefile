@@ -16,7 +16,7 @@ runlocal:
 
 test_go:
 	# Run fast tests first: (and tests whether, say, things compile)
-	GO111MODULE=on go test -v
+	GO111MODULE=on go test -v ./...
 
 test_gvisor: docker
 	docker kill sandbox_front_test || true

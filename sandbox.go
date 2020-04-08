@@ -526,6 +526,10 @@ func sandboxRun(ctx context.Context, exePath string, testParam string) (sandboxt
 	sreq.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(exeBytes)), nil }
 	res, err := sandboxBackendClient().Do(sreq)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			execRes.Error = "timeout running program"
+			return execRes, nil
+		}
 		return execRes, fmt.Errorf("POST %q: %w", sandboxBackendURL(), err)
 	}
 	defer res.Body.Close()

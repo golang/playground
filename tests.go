@@ -67,7 +67,7 @@ func (s *server) runTests() {
 			continue
 		}
 		if resp.Errors != "" {
-			stdlog.Print(resp.Errors)
+			stdlog.Printf("resp.Errors = %q, want %q", resp.Errors, t.errors)
 			failed = true
 			continue
 		}
@@ -548,4 +548,26 @@ import "fmt"
 func Hello() { fmt.Println("hello world") }
 `,
 	},
+	{
+		name: "timeouts_handled_gracefully",
+		prog: `
+package main
+
+import (
+	"time"
+)
+
+func main() {
+	c := make(chan struct{})
+
+	go func() {
+		defer close(c)
+		for {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	<-c
+}
+`, want: "timeout running program"},
 }

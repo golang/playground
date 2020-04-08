@@ -43,12 +43,16 @@ var (
 
 const (
 	maxBinarySize    = 100 << 20
+	startTimeout     = 30 * time.Second
 	runTimeout       = 5 * time.Second
 	maxOutputSize    = 100 << 20
 	memoryLimitBytes = 100 << 20
 )
 
-var errTooMuchOutput = errors.New("Output too large")
+var (
+	errTooMuchOutput = errors.New("Output too large")
+	errRunTimeout    = errors.New("timeout running program")
+)
 
 // containedStartMessage is the first thing written to stdout by the
 // gvisor-contained process when it starts up. This lets the parent HTTP
@@ -68,8 +72,8 @@ var (
 type Container struct {
 	name   string
 	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	stderr io.ReadCloser
+	stdout *limitedWriter
+	stderr *limitedWriter
 	cmd    *exec.Cmd
 
 	waitOnce sync.Once
@@ -78,12 +82,12 @@ type Container struct {
 
 func (c *Container) Close() {
 	setContainerWanted(c.name, false)
-	c.stdin.Close()
-	c.stdout.Close()
-	c.stderr.Close()
+
 	if c.cmd.Process != nil {
-		c.cmd.Process.Kill()
-		c.Wait() // just in case
+		gracefulStop(c.cmd.Process, 250*time.Millisecond)
+		if err := c.Wait(); err != nil {
+			log.Printf("error in c.Wait() for %q: %v", c.name, err)
+		}
 	}
 }
 
@@ -245,6 +249,7 @@ func runInGvisor() {
 	if err := ioutil.WriteFile(binPath, bin, 0755); err != nil {
 		log.Fatalf("writing contained binary: %v", err)
 	}
+	defer os.Remove(binPath) // not that it matters much, this container will be nuked
 
 	var meta processMeta
 	if err := json.NewDecoder(bytes.NewReader(metaJSON)).Decode(&meta); err != nil {
@@ -262,10 +267,32 @@ func runInGvisor() {
 	if err := cmd.Start(); err != nil {
 		log.Fatalf("cmd.Start(): %v", err)
 	}
+	timer := time.AfterFunc(runTimeout-(500*time.Millisecond), func() {
+		fmt.Fprintln(os.Stderr, "timeout running program")
+		gracefulStop(cmd.Process, 250*time.Millisecond)
+	})
+	defer timer.Stop()
 	err = cmd.Wait()
-	os.Remove(binPath) // not that it matters much, this container will be nuked
 	os.Exit(errExitCode(err))
 	return
+}
+
+// gracefulStop attempts to send a SIGINT before a SIGKILL.
+//
+// The process will be sent a SIGINT immediately. If the context has still not been cancelled,
+// the process will be sent a SIGKILL after delay has passed since sending the SIGINT.
+//
+// TODO(golang.org/issue/38343) - Change SIGINT to SIGQUIT once decision is made.
+func gracefulStop(p *os.Process, delay time.Duration) {
+	// TODO(golang.org/issue/38343) - Change to syscall.SIGQUIT once decision is made.
+	if err := p.Signal(os.Interrupt); err != nil {
+		log.Printf("cmd.Process.Signal(%v): %v", os.Interrupt, err)
+	}
+	time.AfterFunc(delay, func() {
+		if err := p.Kill(); err != nil {
+			log.Printf("cmd.Process.Kill(): %v", err)
+		}
+	})
 }
 
 func makeWorkers() {
@@ -321,25 +348,6 @@ func getContainer(ctx context.Context) (*Container, error) {
 func startContainer(ctx context.Context) (c *Container, err error) {
 	name := "play_run_" + randHex(8)
 	setContainerWanted(name, true)
-	var stdin io.WriteCloser
-	var stdout io.ReadCloser
-	var stderr io.ReadCloser
-	defer func() {
-		if err == nil {
-			return
-		}
-		setContainerWanted(name, false)
-		if stdin != nil {
-			stdin.Close()
-		}
-		if stdout != nil {
-			stdout.Close()
-		}
-		if stderr != nil {
-			stderr.Close()
-		}
-	}()
-
 	cmd := exec.Command("docker", "run",
 		"--name="+name,
 		"--rm",
@@ -352,46 +360,53 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 
 		*container,
 		"--mode=contained")
-	stdin, err = cmd.StdinPipe()
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
 	}
-	stdout, err = cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	stderr, err = cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
+	pr, pw := io.Pipe()
+	stdout := &limitedWriter{dst: &bytes.Buffer{}, n: maxOutputSize + int64(len(containedStartMessage))}
+	stderr := &limitedWriter{dst: &bytes.Buffer{}, n: maxOutputSize}
+	cmd.Stdout = &switchWriter{switchAfter: []byte(containedStartMessage), dst1: pw, dst2: stdout}
+	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			log.Printf("error starting container %q: %v", name, err)
+			gracefulStop(cmd.Process, 250*time.Millisecond)
+			setContainerWanted(name, false)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(ctx, startTimeout)
+	defer cancel()
 
-	errc := make(chan error, 1)
+	startErr := make(chan error, 1)
 	go func() {
 		buf := make([]byte, len(containedStartMessage))
-		if _, err := io.ReadFull(stdout, buf); err != nil {
-			errc <- fmt.Errorf("error reading header from sandbox container: %v", err)
-			return
+		_, err := io.ReadFull(pr, buf)
+		if err != nil {
+			startErr <- fmt.Errorf("error reading header from sandbox container: %v", err)
+		} else if string(buf) != containedStartMessage {
+			startErr <- fmt.Errorf("sandbox container sent wrong header %q; want %q", buf, containedStartMessage)
+		} else {
+			startErr <- nil
 		}
-		if string(buf) != containedStartMessage {
-			errc <- fmt.Errorf("sandbox container sent wrong header %q; want %q", buf, containedStartMessage)
-			return
-		}
-		errc <- nil
 	}()
+
 	select {
 	case <-ctx.Done():
-		log.Printf("timeout starting container")
-		cmd.Process.Kill()
-		return nil, ctx.Err()
-	case err := <-errc:
+		err := fmt.Errorf("timeout starting container %q: %w", name, ctx.Err())
+		pw.Close()
+		<-startErr
+		return nil, err
+	case err = <-startErr:
 		if err != nil {
-			log.Printf("error starting container: %v", err)
 			return nil, err
 		}
 	}
+	log.Printf("started container %q", name)
 	return &Container{
 		name:   name,
 		stdin:  stdin,
@@ -435,6 +450,7 @@ func runHandler(w http.ResponseWriter, r *http.Request) {
 
 	bin, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, maxBinarySize))
 	if err != nil {
+		log.Printf("failed to read request body: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -451,88 +467,136 @@ func runHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logf("got container %s", c.name)
-	defer c.Close()
-	defer logf("leaving handler; about to close container")
 
-	runTimer := time.NewTimer(runTimeout)
-	defer runTimer.Stop()
-
-	errc := make(chan error, 2) // user-visible error
-	waitc := make(chan error, 1)
-
-	copyOut := func(which string, dst *[]byte, r io.Reader) {
-		buf := make([]byte, 4<<10)
-		for {
-			n, err := r.Read(buf)
-			logf("%s: Read = %v, %v", which, n, err)
-			*dst = append(*dst, buf[:n]...)
-			if err == io.EOF {
-				return
-			}
-			if len(*dst) > maxOutputSize {
-				errc <- errTooMuchOutput
-				return
-			}
-			if err != nil {
-				log.Printf("reading %s: %v", which, err)
-				errc <- fmt.Errorf("error reading %v", which)
-				return
-			}
-		}
-	}
-
-	res := &sandboxtypes.Response{}
-	go func() {
-		var meta processMeta
-		meta.Args = r.Header["X-Argument"]
-		metaJSON, _ := json.Marshal(&meta)
-		metaJSON = append(metaJSON, '\n')
-		if _, err := c.stdin.Write(metaJSON); err != nil {
-			log.Printf("stdin write meta: %v", err)
-			errc <- errors.New("failed to write meta to child")
-			return
-		}
-		if _, err := c.stdin.Write(bin); err != nil {
-			log.Printf("stdin write: %v", err)
-			errc <- errors.New("failed to write binary to child")
-			return
-		}
-		c.stdin.Close()
-		logf("wrote+closed")
-		go copyOut("stdout", &res.Stdout, c.stdout)
-		go copyOut("stderr", &res.Stderr, c.stderr)
-		waitc <- c.Wait()
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	closed := make(chan struct{})
+	defer func() {
+		logf("leaving handler; about to close container")
+		cancel()
+		<-closed
 	}()
-	var waitErr error
-	select {
-	case waitErr = <-waitc:
-		logf("waited: %v", waitErr)
-	case err := <-errc:
-		logf("got error: %v", err)
-		if err == errTooMuchOutput {
-			sendError(w, err.Error())
-			return
+	go func() {
+		<-ctx.Done()
+		if ctx.Err() == context.DeadlineExceeded {
+			logf("timeout")
 		}
-		if err != nil {
-			http.Error(w, "failed to read stdout from docker run", http.StatusInternalServerError)
-			return
-		}
-	case <-runTimer.C:
-		logf("timeout")
-		sendError(w, "timeout running program")
+		c.Close()
+		close(closed)
+	}()
+	var meta processMeta
+	meta.Args = r.Header["X-Argument"]
+	metaJSON, _ := json.Marshal(&meta)
+	metaJSON = append(metaJSON, '\n')
+	if _, err := c.stdin.Write(metaJSON); err != nil {
+		log.Printf("failed to write meta to child: %v", err)
+		http.Error(w, "unknown error during docker run", http.StatusInternalServerError)
 		return
 	}
-
-	res.ExitCode = errExitCode(waitErr)
-	res.Stderr = cleanStderr(res.Stderr)
+	if _, err := c.stdin.Write(bin); err != nil {
+		log.Printf("failed to write binary to child: %v", err)
+		http.Error(w, "unknown error during docker run", http.StatusInternalServerError)
+		return
+	}
+	c.stdin.Close()
+	logf("wrote+closed")
+	err = c.Wait()
+	select {
+	case <-ctx.Done():
+		// Timed out or canceled before or exactly as Wait returned.
+		// Either way, treat it as a timeout.
+		sendError(w, "timeout running program")
+		return
+	default:
+		logf("finished running; about to close container")
+		cancel()
+	}
+	res := &sandboxtypes.Response{}
+	if err != nil {
+		if c.stderr.n < 0 || c.stdout.n < 0 {
+			// Do not send truncated output, just send the error.
+			sendError(w, errTooMuchOutput.Error())
+			return
+		}
+		var ee *exec.ExitError
+		if !errors.As(err, &ee) {
+			http.Error(w, "unknown error during docker run", http.StatusInternalServerError)
+			return
+		}
+		res.ExitCode = ee.ExitCode()
+	}
+	res.Stdout = c.stdout.dst.Bytes()
+	res.Stderr = cleanStderr(c.stderr.dst.Bytes())
 	sendResponse(w, res)
+}
+
+// limitedWriter is an io.Writer that returns an errTooMuchOutput when the cap (n) is hit.
+type limitedWriter struct {
+	dst *bytes.Buffer
+	n   int64 // max bytes remaining
+}
+
+// Write is an io.Writer function that returns errTooMuchOutput when the cap (n) is hit.
+//
+// Partial data will be written to dst if p is larger than n, but errTooMuchOutput will be returned.
+func (l *limitedWriter) Write(p []byte) (int, error) {
+	defer func() { l.n -= int64(len(p)) }()
+
+	if l.n <= 0 {
+		return 0, errTooMuchOutput
+	}
+
+	if int64(len(p)) > l.n {
+		n, err := l.dst.Write(p[:l.n])
+		if err != nil {
+			return n, err
+		}
+		return n, errTooMuchOutput
+	}
+
+	return l.dst.Write(p)
+}
+
+// switchWriter writes to dst1 until switchAfter is written, the it writes to dst2.
+type switchWriter struct {
+	dst1        io.Writer
+	dst2        io.Writer
+	switchAfter []byte
+	buf         []byte
+	found       bool
+}
+
+func (s *switchWriter) Write(p []byte) (int, error) {
+	if s.found {
+		return s.dst2.Write(p)
+	}
+
+	s.buf = append(s.buf, p...)
+	i := bytes.Index(s.buf, s.switchAfter)
+	if i == -1 {
+		if len(s.buf) >= len(s.switchAfter) {
+			s.buf = s.buf[len(s.buf)-len(s.switchAfter)+1:]
+		}
+		return s.dst1.Write(p)
+	}
+
+	s.found = true
+	nAfter := len(s.buf) - (i + len(s.switchAfter))
+	s.buf = nil
+
+	n, err := s.dst1.Write(p[:len(p)-nAfter])
+	if err != nil {
+		return n, err
+	}
+	n2, err := s.dst2.Write(p[len(p)-nAfter:])
+	return n + n2, err
 }
 
 func errExitCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	if ee, ok := err.(*exec.ExitError); ok {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
 		return ee.ExitCode()
 	}
 	return 1
