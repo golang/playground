@@ -4,7 +4,7 @@
 
 ARG GO_VERSION=go1.14.1
 
-FROM debian:buster AS build
+FROM debian:buster AS go-faketime
 LABEL maintainer="golang-dev@googlegroups.com"
 
 ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
@@ -36,6 +36,8 @@ RUN ./make.bash
 ENV GOROOT /usr/local/go-faketime
 RUN ../bin/go install --tags=faketime std
 
+FROM golang:1.14 as build-playground
+
 COPY go.mod /go/src/playground/go.mod
 COPY go.sum /go/src/playground/go.sum
 WORKDIR /go/src/playground
@@ -51,7 +53,7 @@ FROM debian:buster
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
-COPY --from=build /usr/local/go-faketime /usr/local/go-faketime
+COPY --from=go-faketime /usr/local/go-faketime /usr/local/go-faketime
 
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
@@ -80,7 +82,7 @@ RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
 
 RUN mkdir /app
 
-COPY --from=build /go/bin/playground /app
+COPY --from=build-playground /go/bin/playground /app
 COPY edit.html /app
 COPY static /app/static
 COPY examples /app/examples
