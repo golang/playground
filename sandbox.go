@@ -36,6 +36,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/bradfitz/gomemcache/memcache"
+	"golang.org/x/playground/internal"
 	"golang.org/x/playground/internal/gcpdial"
 	"golang.org/x/playground/sandbox/sandboxtypes"
 )
@@ -123,6 +124,11 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
+			if strings.Contains(resp.Errors, goBuildTimeoutError) {
+				// TODO(golang.org/issue/38052) - This should be a http.StatusBadRequest, but the UI requires a 200 to parse the response.
+				s.writeResponse(w, resp, http.StatusOK)
+				return
+			}
 			for _, e := range nonCachingErrors {
 				if strings.Contains(resp.Errors, e) {
 					s.log.Errorf("cmdFunc compilation error: %q", resp.Errors)
@@ -147,16 +153,21 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context
 			}
 		}
 
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(resp); err != nil {
-			s.log.Errorf("error encoding response: %v", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		if _, err := io.Copy(w, &buf); err != nil {
-			s.log.Errorf("io.Copy(w, &buf): %v", err)
-			return
-		}
+		s.writeResponse(w, resp, http.StatusOK)
+	}
+}
+
+func (s *server) writeResponse(w http.ResponseWriter, resp *response, status int) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(resp); err != nil {
+		s.log.Errorf("error encoding response: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(status)
+	if _, err := io.Copy(w, &buf); err != nil {
+		s.log.Errorf("io.Copy(w, &buf): %v", err)
+		return
 	}
 }
 
@@ -450,9 +461,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 	br.exePath = filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
 
-	ctx, cancel := context.WithTimeout(ctx, maxCompileTime)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "/usr/local/go-faketime/bin/go", "build", "-o", br.exePath, "-tags=faketime")
+	cmd := exec.Command("/usr/local/go-faketime/bin/go", "build", "-o", br.exePath, "-tags=faketime")
 	cmd.Dir = tmpDir
 	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}
 	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
@@ -472,25 +481,30 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 	}
 	cmd.Args = append(cmd.Args, buildPkgArg)
 	cmd.Env = append(cmd.Env, "GOPATH="+br.goPath)
-	t0 := time.Now()
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Printf("go build timed out after %v", time.Since(t0))
-			return &buildResult{errorMessage: goBuildTimeoutError}, nil
+	out := &bytes.Buffer{}
+	cmd.Stderr, cmd.Stdout = out, out
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("error starting go build: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, maxCompileTime)
+	defer cancel()
+	if err := internal.WaitOrStop(ctx, cmd, os.Interrupt, 250*time.Millisecond); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			br.errorMessage = fmt.Sprintln(goBuildTimeoutError)
+		} else if ee := (*exec.ExitError)(nil); !errors.As(err, &ee) {
+			log.Printf("error building program: %v", err)
+			return nil, fmt.Errorf("error building go source: %v", err)
 		}
-		if _, ok := err.(*exec.ExitError); ok {
-			// Return compile errors to the user.
+		// Return compile errors to the user.
+		// Rewrite compiler errors to strip the tmpDir name.
+		br.errorMessage = br.errorMessage + strings.Replace(string(out.Bytes()), tmpDir+"/", "", -1)
 
-			// Rewrite compiler errors to strip the tmpDir name.
-			br.errorMessage = strings.Replace(string(out), tmpDir+"/", "", -1)
+		// "go build", invoked with a file name, puts this odd
+		// message before any compile errors; strip it.
+		br.errorMessage = strings.Replace(br.errorMessage, "# command-line-arguments\n", "", 1)
 
-			// "go build", invoked with a file name, puts this odd
-			// message before any compile errors; strip it.
-			br.errorMessage = strings.Replace(br.errorMessage, "# command-line-arguments\n", "", 1)
-
-			return br, nil
-		}
-		return nil, fmt.Errorf("error building go source: %v", err)
+		return br, nil
 	}
 	const maxBinarySize = 100 << 20 // copied from sandbox backend; TODO: unify?
 	if fi, err := os.Stat(br.exePath); err != nil || fi.Size() == 0 || fi.Size() > maxBinarySize {

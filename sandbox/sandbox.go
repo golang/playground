@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/playground/internal"
 	"golang.org/x/playground/sandbox/sandboxtypes"
 )
 
@@ -70,34 +71,31 @@ var (
 )
 
 type Container struct {
-	name   string
+	name string
+
 	stdin  io.WriteCloser
 	stdout *limitedWriter
 	stderr *limitedWriter
-	cmd    *exec.Cmd
 
-	waitOnce sync.Once
-	waitVal  error
+	cmd       *exec.Cmd
+	cancelCmd context.CancelFunc
+
+	waitErr chan error // 1-buffered; receives error from WaitOrStop(..., cmd, ...)
 }
 
 func (c *Container) Close() {
 	setContainerWanted(c.name, false)
 
-	if c.cmd.Process != nil {
-		gracefulStop(c.cmd.Process, 250*time.Millisecond)
-		if err := c.Wait(); err != nil {
-			log.Printf("error in c.Wait() for %q: %v", c.name, err)
-		}
+	c.cancelCmd()
+	if err := c.Wait(); err != nil {
+		log.Printf("error in c.Wait() for %q: %v", c.name, err)
 	}
 }
 
 func (c *Container) Wait() error {
-	c.waitOnce.Do(c.wait)
-	return c.waitVal
-}
-
-func (c *Container) wait() {
-	c.waitVal = c.cmd.Wait()
+	err := <-c.waitErr
+	c.waitErr <- err
+	return err
 }
 
 var httpServer *http.Server
@@ -267,32 +265,15 @@ func runInGvisor() {
 	if err := cmd.Start(); err != nil {
 		log.Fatalf("cmd.Start(): %v", err)
 	}
-	timer := time.AfterFunc(runTimeout-(500*time.Millisecond), func() {
-		fmt.Fprintln(os.Stderr, "timeout running program")
-		gracefulStop(cmd.Process, 250*time.Millisecond)
-	})
-	defer timer.Stop()
-	err = cmd.Wait()
+	ctx, cancel := context.WithTimeout(context.Background(), runTimeout-500*time.Millisecond)
+	defer cancel()
+	if err = internal.WaitOrStop(ctx, cmd, os.Interrupt, 250*time.Millisecond); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			fmt.Fprintln(os.Stderr, "timeout running program")
+		}
+	}
 	os.Exit(errExitCode(err))
 	return
-}
-
-// gracefulStop attempts to send a SIGINT before a SIGKILL.
-//
-// The process will be sent a SIGINT immediately. If the context has still not been cancelled,
-// the process will be sent a SIGKILL after delay has passed since sending the SIGINT.
-//
-// TODO(golang.org/issue/38343) - Change SIGINT to SIGQUIT once decision is made.
-func gracefulStop(p *os.Process, delay time.Duration) {
-	// TODO(golang.org/issue/38343) - Change to syscall.SIGQUIT once decision is made.
-	if err := p.Signal(os.Interrupt); err != nil {
-		log.Printf("cmd.Process.Signal(%v): %v", os.Interrupt, err)
-	}
-	time.AfterFunc(delay, func() {
-		if err := p.Kill(); err != nil {
-			log.Printf("cmd.Process.Kill(): %v", err)
-		}
-	})
 }
 
 func makeWorkers() {
@@ -372,15 +353,25 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	c = &Container{
+		name:      name,
+		stdin:     stdin,
+		stdout:    stdout,
+		stderr:    stderr,
+		cmd:       cmd,
+		cancelCmd: cancel,
+		waitErr:   make(chan error, 1),
+	}
+	go func() {
+		c.waitErr <- internal.WaitOrStop(ctx, cmd, os.Interrupt, 250*time.Millisecond)
+	}()
 	defer func() {
 		if err != nil {
-			log.Printf("error starting container %q: %v", name, err)
-			gracefulStop(cmd.Process, 250*time.Millisecond)
-			setContainerWanted(name, false)
+			c.Close()
 		}
 	}()
-	ctx, cancel := context.WithTimeout(ctx, startTimeout)
-	defer cancel()
 
 	startErr := make(chan error, 1)
 	go func() {
@@ -395,25 +386,23 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 		}
 	}()
 
+	timer := time.NewTimer(startTimeout)
+	defer timer.Stop()
 	select {
-	case <-ctx.Done():
-		err := fmt.Errorf("timeout starting container %q: %w", name, ctx.Err())
-		pw.Close()
+	case <-timer.C:
+		err := fmt.Errorf("timeout starting container %q", name)
+		cancel()
 		<-startErr
 		return nil, err
-	case err = <-startErr:
+
+	case err := <-startErr:
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	log.Printf("started container %q", name)
-	return &Container{
-		name:   name,
-		stdin:  stdin,
-		stdout: stdout,
-		stderr: stderr,
-		cmd:    cmd,
-	}, nil
+	return c, nil
 }
 
 func runHandler(w http.ResponseWriter, r *http.Request) {
