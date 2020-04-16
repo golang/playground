@@ -31,6 +31,8 @@ import (
 	"sync"
 	"text/template"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/bradfitz/gomemcache/memcache"
@@ -190,7 +192,7 @@ func isTestFunc(fn *ast.FuncDecl) bool {
 
 // isTest tells whether name looks like a test (or benchmark, according to prefix).
 // It is a Test (say) if there is a character after Test that is not a lower-case letter.
-// We don't want TesticularCancer.
+// We don't want mistaken Testimony or erroneous Benchmarking.
 func isTest(name, prefix string) bool {
 	if !strings.HasPrefix(name, prefix) {
 		return false
@@ -198,7 +200,8 @@ func isTest(name, prefix string) bool {
 	if len(name) == len(prefix) { // "Test" is ok
 		return true
 	}
-	return ast.IsExported(name[len(prefix):])
+	r, _ := utf8.DecodeRuneInString(name[len(prefix):])
+	return !unicode.IsLower(r)
 }
 
 // getTestProg returns source code that executes all valid tests and examples in src.
