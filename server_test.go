@@ -7,12 +7,17 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
+
+	"github.com/bradfitz/gomemcache/memcache"
+	"github.com/google/go-cmp/cmp"
 )
 
 type testLogger struct {
@@ -166,6 +171,7 @@ func TestCommandHandler(t *testing.T) {
 		// Should we verify that s.log.Errorf was called
 		// instead of just printing or failing the test?
 		s.log = newStdLogger()
+		s.cache = new(inMemCache)
 		return nil
 	})
 	if err != nil {
@@ -193,63 +199,103 @@ func TestCommandHandler(t *testing.T) {
 		if r.Body == "allocate-memory-compile-error" {
 			return &response{Errors: "cannot allocate memory"}, nil
 		}
+		if r.Body == "build-timeout-error" {
+			return &response{Errors: goBuildTimeoutError}, nil
+		}
+		if r.Body == "run-timeout-error" {
+			return &response{Errors: runTimeoutError}, nil
+		}
 		resp := &response{Events: []Event{{r.Body, "stdout", 0}}}
 		return resp, nil
 	})
 
 	testCases := []struct {
-		desc       string
-		method     string
-		statusCode int
-		reqBody    []byte
-		respBody   []byte
+		desc        string
+		method      string
+		statusCode  int
+		reqBody     []byte
+		respBody    []byte
+		shouldCache bool
 	}{
-		{"OPTIONS request", http.MethodOptions, http.StatusOK, nil, nil},
-		{"GET request", http.MethodGet, http.StatusBadRequest, nil, nil},
-		{"Empty POST", http.MethodPost, http.StatusBadRequest, nil, nil},
-		{"Failed cmdFunc", http.MethodPost, http.StatusInternalServerError, []byte(`{"Body":"fail"}`), nil},
+		{"OPTIONS request", http.MethodOptions, http.StatusOK, nil, nil, false},
+		{"GET request", http.MethodGet, http.StatusBadRequest, nil, nil, false},
+		{"Empty POST", http.MethodPost, http.StatusBadRequest, nil, nil, false},
+		{"Failed cmdFunc", http.MethodPost, http.StatusInternalServerError, []byte(`{"Body":"fail"}`), nil, false},
 		{"Standard flow", http.MethodPost, http.StatusOK,
 			[]byte(`{"Body":"ok"}`),
 			[]byte(`{"Errors":"","Events":[{"Message":"ok","Kind":"stdout","Delay":0}],"Status":0,"IsTest":false,"TestsFailed":0}
 `),
-		},
-		{"Errors in response", http.MethodPost, http.StatusOK,
+			true},
+		{"Cache-able Errors in response", http.MethodPost, http.StatusOK,
 			[]byte(`{"Body":"error"}`),
 			[]byte(`{"Errors":"errors","Events":null,"Status":0,"IsTest":false,"TestsFailed":0}
 `),
-		},
+			true},
 		{"Out of memory error in response body event message", http.MethodPost, http.StatusInternalServerError,
-			[]byte(`{"Body":"oom-error"}`), nil},
+			[]byte(`{"Body":"oom-error"}`), nil, false},
 		{"Cannot allocate memory error in response body event message", http.MethodPost, http.StatusInternalServerError,
-			[]byte(`{"Body":"allocate-memory-error"}`), nil},
+			[]byte(`{"Body":"allocate-memory-error"}`), nil, false},
 		{"Out of memory error in response errors", http.MethodPost, http.StatusInternalServerError,
-			[]byte(`{"Body":"oom-compile-error"}`), nil},
+			[]byte(`{"Body":"oom-compile-error"}`), nil, false},
 		{"Cannot allocate memory error in response errors", http.MethodPost, http.StatusInternalServerError,
-			[]byte(`{"Body":"allocate-memory-compile-error"}`), nil},
+			[]byte(`{"Body":"allocate-memory-compile-error"}`), nil, false},
+		{
+			desc:       "Build timeout error",
+			method:     http.MethodPost,
+			statusCode: http.StatusOK,
+			reqBody:    []byte(`{"Body":"build-timeout-error"}`),
+			respBody:   []byte(fmt.Sprintln(`{"Errors":"timeout running go build","Events":null,"Status":0,"IsTest":false,"TestsFailed":0}`)),
+		},
+		{
+			desc:       "Run timeout error",
+			method:     http.MethodPost,
+			statusCode: http.StatusOK,
+			reqBody:    []byte(`{"Body":"run-timeout-error"}`),
+			respBody:   []byte(fmt.Sprintln(`{"Errors":"timeout running program","Events":null,"Status":0,"IsTest":false,"TestsFailed":0}`)),
+		},
 	}
 
 	for _, tc := range testCases {
-		req := httptest.NewRequest(tc.method, "/compile", bytes.NewReader(tc.reqBody))
-		w := httptest.NewRecorder()
-		testHandler(w, req)
-		resp := w.Result()
-		corsHeader := "Access-Control-Allow-Origin"
-		if got, want := resp.Header.Get(corsHeader), "*"; got != want {
-			t.Errorf("%s: %q header: got %q; want %q", tc.desc, corsHeader, got, want)
-		}
-		if got, want := resp.StatusCode, tc.statusCode; got != want {
-			t.Errorf("%s: got unexpected status code %d; want %d", tc.desc, got, want)
-		}
-		if tc.respBody != nil {
-			defer resp.Body.Close()
-			b, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				t.Errorf("%s: ioutil.ReadAll(resp.Body): %v", tc.desc, err)
+		t.Run(tc.desc, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, "/compile", bytes.NewReader(tc.reqBody))
+			w := httptest.NewRecorder()
+			testHandler(w, req)
+			resp := w.Result()
+			corsHeader := "Access-Control-Allow-Origin"
+			if got, want := resp.Header.Get(corsHeader), "*"; got != want {
+				t.Errorf("%s: %q header: got %q; want %q", tc.desc, corsHeader, got, want)
 			}
-			if !bytes.Equal(b, tc.respBody) {
-				t.Errorf("%s: got unexpected body %q; want %q", tc.desc, b, tc.respBody)
+			if got, want := resp.StatusCode, tc.statusCode; got != want {
+				t.Errorf("%s: got unexpected status code %d; want %d", tc.desc, got, want)
 			}
-		}
+			if tc.respBody != nil {
+				defer resp.Body.Close()
+				b, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Errorf("%s: ioutil.ReadAll(resp.Body): %v", tc.desc, err)
+				}
+				if !bytes.Equal(b, tc.respBody) {
+					t.Errorf("%s: got unexpected body %q; want %q", tc.desc, b, tc.respBody)
+				}
+			}
+
+			// Test caching semantics.
+			sbreq := new(request)             // A sandbox request, used in the cache key.
+			json.Unmarshal(tc.reqBody, sbreq) // Ignore errors, request may be empty.
+			gotCache := new(response)
+			if err := s.cache.Get(cacheKey("test", sbreq.Body), gotCache); (err == nil) != tc.shouldCache {
+				t.Errorf("s.cache.Get(%q, %v) = %v, shouldCache: %v", cacheKey("test", sbreq.Body), gotCache, err, tc.shouldCache)
+			}
+			wantCache := new(response)
+			if tc.shouldCache {
+				if err := json.Unmarshal(tc.respBody, wantCache); err != nil {
+					t.Errorf("json.Unmarshal(%q, %v) = %v, wanted no error", tc.respBody, wantCache, err)
+				}
+			}
+			if diff := cmp.Diff(wantCache, gotCache); diff != "" {
+				t.Errorf("s.Cache.Get(%q) mismatch (-want +got):\n%s", cacheKey("test", sbreq.Body), diff)
+			}
+		})
 	}
 }
 
@@ -314,4 +360,37 @@ func TestPlaygroundGoproxy(t *testing.T) {
 			}
 		})
 	}
+}
+
+// inMemCache is a responseCache backed by a map. It is only suitable for testing.
+type inMemCache struct {
+	l sync.Mutex
+	m map[string]*response
+}
+
+// Set implements the responseCache interface.
+// Set stores a *response in the cache. It panics for other types to ensure test failure.
+func (i *inMemCache) Set(key string, v interface{}) error {
+	i.l.Lock()
+	defer i.l.Unlock()
+	if i.m == nil {
+		i.m = make(map[string]*response)
+	}
+	i.m[key] = v.(*response)
+	return nil
+}
+
+// Get implements the responseCache interface.
+// Get fetches a *response from the cache, or returns a memcache.ErrcacheMiss.
+// It panics for other types to ensure test failure.
+func (i *inMemCache) Get(key string, v interface{}) error {
+	i.l.Lock()
+	defer i.l.Unlock()
+	target := v.(*response)
+	got, ok := i.m[key]
+	if !ok {
+		return memcache.ErrCacheMiss
+	}
+	*target = *got
+	return nil
 }

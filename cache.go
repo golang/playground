@@ -11,6 +11,14 @@ import (
 	"github.com/bradfitz/gomemcache/memcache"
 )
 
+// responseCache is a common interface for cache implementations.
+type responseCache interface {
+	// Set sets the value for a key.
+	Set(key string, v interface{}) error
+	// Get sets v to the value stored for a key.
+	Get(key string, v interface{}) error
+}
+
 // gobCache stores and retrieves values using a memcache client using the gob
 // encoding package. It does not currently allow for expiration of items.
 // With a nil gobCache, Set is a no-op and Get will always return memcache.ErrCacheMiss.

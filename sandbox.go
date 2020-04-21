@@ -50,14 +50,16 @@ const (
 	progName = "prog.go"
 )
 
-const goBuildTimeoutError = "timeout running go build"
+const (
+	goBuildTimeoutError = "timeout running go build"
+	runTimeoutError     = "timeout running program"
+)
 
-// Responses that contain these strings will not be cached due to
-// their non-deterministic nature.
-var nonCachingErrors = []string{
+// internalErrors are strings found in responses that will not be cached
+// due to their non-deterministic nature.
+var internalErrors = []string{
 	"out of memory",
 	"cannot allocate memory",
-	goBuildTimeoutError,
 }
 
 type request struct {
@@ -115,7 +117,7 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context
 		resp := &response{}
 		key := cacheKey(cachePrefix, req.Body)
 		if err := s.cache.Get(key, resp); err != nil {
-			if err != memcache.ErrCacheMiss {
+			if !errors.Is(err, memcache.ErrCacheMiss) {
 				s.log.Errorf("s.cache.Get(%q, &response): %v", key, err)
 			}
 			resp, err = cmdFunc(r.Context(), &req)
@@ -124,12 +126,16 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
-			if strings.Contains(resp.Errors, goBuildTimeoutError) {
-				// TODO(golang.org/issue/38052) - This should be a http.StatusBadRequest, but the UI requires a 200 to parse the response.
+			if strings.Contains(resp.Errors, goBuildTimeoutError) || strings.Contains(resp.Errors, runTimeoutError) {
+				// TODO(golang.org/issue/38576) - This should be a http.StatusBadRequest,
+				// but the UI requires a 200 to parse the response. It's difficult to know
+				// if we've timed out because of an error in the code snippet, or instability
+				// on the playground itself. Either way, we should try to show the user the
+				// partial output of their program.
 				s.writeResponse(w, resp, http.StatusOK)
 				return
 			}
-			for _, e := range nonCachingErrors {
+			for _, e := range internalErrors {
 				if strings.Contains(resp.Errors, e) {
 					s.log.Errorf("cmdFunc compilation error: %q", resp.Errors)
 					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -140,7 +146,7 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context
 				if el.Kind != "stderr" {
 					continue
 				}
-				for _, e := range nonCachingErrors {
+				for _, e := range internalErrors {
 					if strings.Contains(el.Message, e) {
 						s.log.Errorf("cmdFunc runtime error: %q", el.Message)
 						http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -543,8 +549,8 @@ func sandboxRun(ctx context.Context, exePath string, testParam string) (sandboxt
 	sreq.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(exeBytes)), nil }
 	res, err := sandboxBackendClient().Do(sreq)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			execRes.Error = "timeout running program"
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			execRes.Error = runTimeoutError
 			return execRes, nil
 		}
 		return execRes, fmt.Errorf("POST %q: %w", sandboxBackendURL(), err)

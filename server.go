@@ -18,7 +18,7 @@ type server struct {
 	mux   *http.ServeMux
 	db    store
 	log   logger
-	cache *gobCache
+	cache responseCache
 
 	// When the executable was last modified. Used for caching headers of compiled assets.
 	modtime time.Time

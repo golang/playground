@@ -39,6 +39,7 @@ func main() {
 			s.cache = newGobCache(caddr)
 			log.Printf("App (project ID: %q) is caching results", pid)
 		} else {
+			s.cache = (*gobCache)(nil) // Use a no-op cache implementation.
 			log.Printf("App (project ID: %q) is NOT caching results", pid)
 		}
 		s.log = log
