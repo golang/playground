@@ -104,35 +104,31 @@
 		<input type="button" value="Run" id="embedRun">
 		<div id="banner">
 			<div id="head" itemprop="name">The Go Playground</div>
-			<div id="controls">
-				<input type="button" value="Run" id="run">
-				<input type="button" value="Format" id="fmt">
-				<div id="importsBox">
-					<label title="Rewrite imports on Format">
-						<input type="checkbox" id="imports">
-						Imports
-					</label>
-				</div>
-				{{if $.Share}}
-				<input type="button" value="Share" id="share">
-				<input type="text" id="shareURL">
-				<label id="embedLabel">
-					<input type="checkbox" id="embed">
-					embed
+			<input type="button" value="Run" id="run">
+			<input type="button" value="Format" id="fmt">
+			<div id="importsBox">
+				<label title="Rewrite imports on Format">
+					<input type="checkbox" id="imports">
+					Imports
 				</label>
-				{{end}}
-				<select class="js-playgroundToysEl">
-					<option value="hello.txt">Hello, playground</option>
-					<option value="test.txt">Tests</option>
-					<option value="multi.txt">Multiple files</option>
-					<option value="image.txt">Display image</option>
-					<option value="sleep.txt">Sleep</option>
-					<option value="clear.txt">Clear</option>
-				</select>
 			</div>
-			<div id="aboutControls">
-				<input type="button" value="About" id="aboutButton">
-			</div>
+			{{if $.Share}}
+			<input type="button" value="Share" id="share">
+			<input type="text" id="shareURL">
+			<label id="embedLabel">
+				<input type="checkbox" id="embed">
+				embed
+			</label>
+			{{end}}
+			<select class="js-playgroundToysEl">
+				<option value="hello.txt">Hello, playground</option>
+				<option value="test.txt">Tests</option>
+				<option value="multi.txt">Multiple files</option>
+				<option value="image.txt">Display image</option>
+				<option value="sleep.txt">Sleep</option>
+				<option value="clear.txt">Clear</option>
+			</select>
+			<input type="button" value="About" id="aboutButton">
 		</div>
 		<div id="wrap">
 			<textarea itemprop="description" id="code" name="code" autocorrect="off" autocomplete="off" autocapitalize="off" spellcheck="false">{{printf "%s" .Snippet.Body}}</textarea>

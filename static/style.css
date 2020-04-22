@@ -79,6 +79,9 @@ a {
 	margin: 0;
 }
 #banner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
 	position: absolute;
 	left: 0;
 	right: 0;
@@ -86,24 +89,24 @@ a {
 	height: 50px;
 	background-color: #E0EBF5;
 }
+#banner > * {
+	margin-top: 10px;
+	margin-bottom: 10px;
+	margin-right: 5px;
+	border-radius: 5px;
+	box-sizing: border-box;
+	height: 30px;
+}
 #head {
-	float: left;
-	padding: 15px 10px;
-
+	padding-left: 10px;
+	padding-right: 20px;
+	padding-top: 5px;
 	font-size: 20px;
 	font-family: sans-serif;
 }
-#controls {
-	float: left;
-	padding: 10px 15px;
-	min-width: 245px;
-}
-#controls > input {
-	border-radius: 5px;
-}
-#aboutControls {
-	float: right;
-	padding: 10px 15px;
+#aboutButton {
+	margin-left: auto;
+	margin-right: 15px;
 }
 input[type=button],
 #importsBox {
@@ -116,12 +119,10 @@ input[type=button],
 	position: static;
 	top: 1px;
 	border-radius: 5px;
+	-webkit-appearance: none;
 }
 #importsBox {
-	position: relative;
-	display: inline;
-	padding: 5px 0;
-	margin-right: 5px;
+	padding: 0.25em 7px;
 }
 #importsBox input {
 	position: relative;
@@ -129,6 +130,7 @@ input[type=button],
 	left: 1px;
 	height: 10px;
 	width: 10px;
+	margin-left: 0;
 }
 #shareURL {
 	width: 280px;
@@ -136,10 +138,14 @@ input[type=button],
 	border: 1px solid #ccc;
 	background: #eee;
 	color: black;
-	height: 23px;
 }
 #embedLabel {
 	font-family: sans-serif;
+	padding-top: 5px;
+}
+#banner > select {
+	font-size: 0.875rem;
+	border: 0.0625rem solid #375EAB;
 }
 .lines {
 	float: left;
@@ -173,10 +179,4 @@ input[type=button],
 	z-index: 1;
 	top: 10px;
 	right: 10px;
-}
-
-#controls select {
-	font-size: 0.875rem;
-	border: 0.0625rem solid #375EAB;
-	margin: 0;
 }
