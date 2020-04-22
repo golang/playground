@@ -1,7 +1,7 @@
 spec:
   containers:
     - name: playground
-      image: 'gcr.io/PROJECT_NAME/gvisor-playground-sandbox:latest'
+      image: 'gcr.io/PROJECT_NAME/playground-sandbox:latest'
       volumeMounts:
         - name: dockersock
           mountPath: /var/run/docker.sock

@@ -35,9 +35,9 @@ data "google_compute_image" "cos" {
 }
 
 resource "google_compute_instance_template" "inst_tmpl" {
-  name         = "play-sandbox-tmpl"
+  name_prefix  = "play-sandbox-tmpl"
   machine_type = "n1-standard-8"
-  metadata = {
+  metadata     = {
     "ssh-keys"                  = "bradfitz:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDaRpEbckQ+harGnrKUjk3JziwYqvz2bRNn0ngpzROaeCwm1XetDby/fgmQruZE/OBpbeOaCOd/yyP89Oer9CJx41AFEfHbudePZti/y+fmZ05N+QoBSAG0JtYWVydIjAjCenKBbNrYmwcQ840uNdIv9Ztqu3lbO/syMgcajappzdqMlwVZuHTJUe1JQD355PiinFHPTa7l0MrZPfiSsBdiTGmO39iVa312yshu6dZAvDgRL+bgIzTL6udPL/cVq+zlkvoZbzC4ajuZs4w2in+kqXHQSxbKHlXOhPrej1fwhspm+0Y7hEZOaN5Juc5GseNCHImtJh1rei1Qa4U/nTjt bradfitz@bradfitz-dev"
     "gce-container-declaration" = data.local_file.konlet.content
     "user-data"                 = data.local_file.cloud_init.content
@@ -63,11 +63,11 @@ resource "google_compute_instance_template" "inst_tmpl" {
 }
 
 resource "google_compute_region_autoscaler" "default" {
-  provider = "google-beta"
+  provider = google-beta
 
   name   = "play-sandbox-autoscaler"
   region = "us-central1"
-  target = "${google_compute_region_instance_group_manager.rigm.self_link}"
+  target = google_compute_region_instance_group_manager.rigm.self_link
 
   autoscaling_policy {
     max_replicas    = 10
@@ -81,7 +81,7 @@ resource "google_compute_region_autoscaler" "default" {
 }
 
 resource "google_compute_region_instance_group_manager" "rigm" {
-  provider = "google-beta"
+  provider = google-beta
   name     = "play-sandbox-rigm"
 
   base_instance_name = "playsandbox"
@@ -89,16 +89,24 @@ resource "google_compute_region_instance_group_manager" "rigm" {
 
   version {
     name              = "primary"
-    instance_template = "${google_compute_instance_template.inst_tmpl.self_link}"
+    instance_template = google_compute_instance_template.inst_tmpl.self_link
   }
 
   named_port {
     name = "http"
     port = 80
   }
+  update_policy {
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "PROACTIVE"
+    minimal_action               = "REPLACE"
+    max_surge_fixed              = 10
+    max_unavailable_fixed        = 0
+    min_ready_sec                = 60
+  }
 }
 
 data "google_compute_region_instance_group" "rig" {
-  provider  = "google-beta"
-  self_link = "${google_compute_region_instance_group_manager.rigm.instance_group}"
+  provider  = google-beta
+  self_link = google_compute_region_instance_group_manager.rigm.instance_group
 }
