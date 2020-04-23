@@ -45,7 +45,7 @@ resource "google_compute_instance_template" "inst_tmpl" {
     network = "golang"
   }
   service_account {
-    scopes = ["logging-write", "storage-ro"]
+    scopes = ["logging-write", "storage-ro", "monitoring-write"]
   }
   disk {
     source_image = data.google_compute_image.cos.self_link
