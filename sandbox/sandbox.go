@@ -30,6 +30,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/trace"
 	"golang.org/x/playground/internal"
 	"golang.org/x/playground/sandbox/sandboxtypes"
 )
@@ -116,6 +118,15 @@ func main() {
 	runSem = make(chan struct{}, *numWorkers)
 	go handleSignals()
 
+	mux := http.NewServeMux()
+
+	if ms, err := newMetricService(); err != nil {
+		log.Printf("Failed to initialize metrics: newMetricService() = _, %v, wanted no error", err)
+	} else {
+		mux.Handle("/statusz", ochttp.WithRouteTag(ms, "/statusz"))
+		defer ms.Stop()
+	}
+
 	if out, err := exec.Command("docker", "version").CombinedOutput(); err != nil {
 		log.Fatalf("failed to connect to docker: %v, %s", err, out)
 	}
@@ -129,14 +140,18 @@ func main() {
 		log.Printf("Listening on %s", *listenAddr)
 	}
 
-	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/healthz", healthHandler)
-	http.HandleFunc("/", rootHandler)
-	http.HandleFunc("/run", runHandler)
+	mux.Handle("/health", ochttp.WithRouteTag(http.HandlerFunc(healthHandler), "/health"))
+	mux.Handle("/healthz", ochttp.WithRouteTag(http.HandlerFunc(healthHandler), "/healthz"))
+	mux.Handle("/", ochttp.WithRouteTag(http.HandlerFunc(rootHandler), "/"))
+	mux.Handle("/run", ochttp.WithRouteTag(http.HandlerFunc(runHandler), "/run"))
 
 	go makeWorkers()
 
-	httpServer = &http.Server{Addr: *listenAddr}
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.NeverSample()})
+	httpServer = &http.Server{
+		Addr:    *listenAddr,
+		Handler: &ochttp.Handler{Handler: mux},
+	}
 	log.Fatal(httpServer.ListenAndServe())
 }
 

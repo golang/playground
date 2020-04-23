@@ -6,6 +6,11 @@
 
 FROM golang:1.14 AS build
 
+COPY go.mod /go/src/playground/go.mod
+COPY go.sum /go/src/playground/go.sum
+WORKDIR /go/src/playground
+RUN go mod download
+
 COPY . /go/src/playground
 WORKDIR /go/src/playground/sandbox
 RUN go install
