@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestLimitedWriter(t *testing.T) {
@@ -180,5 +182,45 @@ func TestSwitchWriterMultipleWrites(t *testing.T) {
 	}
 	if string(dst2.Bytes()) != " and this is after" {
 		t.Errorf("dst2.Bytes() = %q, wanted %q", dst2.Bytes(), " and this is after")
+	}
+}
+
+func TestParseDockerContainers(t *testing.T) {
+	cases := []struct {
+		desc    string
+		output  string
+		want    []dockerContainer
+		wantErr bool
+	}{
+		{
+			desc: "normal output (container per line)",
+			output: `{"Command":"\"/usr/local/bin/play…\"","CreatedAt":"2020-04-23 17:44:02 -0400 EDT","ID":"f7f170fde076","Image":"gcr.io/golang-org/playground-sandbox-gvisor:latest","Labels":"","LocalVolumes":"0","Mounts":"","Names":"play_run_a02cfe67","Networks":"none","Ports":"","RunningFor":"8 seconds ago","Size":"0B","Status":"Up 7 seconds"}
+{"Command":"\"/usr/local/bin/play…\"","CreatedAt":"2020-04-23 17:44:02 -0400 EDT","ID":"af872e55a773","Image":"gcr.io/golang-org/playground-sandbox-gvisor:latest","Labels":"","LocalVolumes":"0","Mounts":"","Names":"play_run_0a69c3e8","Networks":"none","Ports":"","RunningFor":"8 seconds ago","Size":"0B","Status":"Up 7 seconds"}`,
+			want: []dockerContainer{
+				{ID: "f7f170fde076", Image: "gcr.io/golang-org/playground-sandbox-gvisor:latest", Names: "play_run_a02cfe67"},
+				{ID: "af872e55a773", Image: "gcr.io/golang-org/playground-sandbox-gvisor:latest", Names: "play_run_0a69c3e8"},
+			},
+			wantErr: false,
+		},
+		{
+			desc:    "empty output",
+			wantErr: false,
+		},
+		{
+			desc:    "malformatted output",
+			output:  `xyzzy{}`,
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			cs, err := parseDockerContainers([]byte(tc.output))
+			if (err != nil) != tc.wantErr {
+				t.Errorf("parseDockerContainers(_) = %v, %v, wantErr: %v", cs, err, tc.wantErr)
+			}
+			if diff := cmp.Diff(tc.want, cs); diff != "" {
+				t.Errorf("parseDockerContainers() mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

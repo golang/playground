@@ -11,6 +11,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -31,6 +32,7 @@ import (
 	"time"
 
 	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/stats"
 	"go.opencensus.io/trace"
 	"golang.org/x/playground/internal"
 	"golang.org/x/playground/sandbox/sandboxtypes"
@@ -146,6 +148,9 @@ func main() {
 	mux.Handle("/run", ochttp.WithRouteTag(http.HandlerFunc(runHandler), "/run"))
 
 	go makeWorkers()
+	go internal.PeriodicallyDo(context.Background(), 10*time.Second, func(ctx context.Context, _ time.Time) {
+		countDockerContainers(ctx)
+	})
 
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.NeverSample()})
 	httpServer = &http.Server{
@@ -153,6 +158,70 @@ func main() {
 		Handler: &ochttp.Handler{Handler: mux},
 	}
 	log.Fatal(httpServer.ListenAndServe())
+}
+
+// dockerContainer is the structure of each line output from docker ps.
+type dockerContainer struct {
+	// ID is the docker container ID.
+	ID string `json:"ID"`
+	// Image is the docker image name.
+	Image string `json:"Image"`
+	// Names is the docker container name.
+	Names string `json:"Names"`
+}
+
+// countDockerContainers records the metric for the current number of docker containers.
+// It also records the count of any unwanted containers.
+func countDockerContainers(ctx context.Context) {
+	cs, err := listDockerContainers(ctx)
+	if err != nil {
+		log.Printf("Error counting docker containers: %v", err)
+	}
+	stats.Record(ctx, mContainers.M(int64(len(cs))))
+	var unwantedCount int64
+	for _, c := range cs {
+		if c.Names != "" && !isContainerWanted(c.Names) {
+			unwantedCount++
+		}
+	}
+	stats.Record(ctx, mUnwantedContainers.M(unwantedCount))
+}
+
+// listDockerContainers returns the current running play_run containers reported by docker.
+func listDockerContainers(ctx context.Context) ([]dockerContainer, error) {
+	out := new(bytes.Buffer)
+	cmd := exec.Command("docker", "ps", "--quiet", "--filter", "name=play_run_", "--format", "{{json .}}")
+	cmd.Stdout, cmd.Stderr = out, out
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("listDockerContainers: cmd.Start() failed: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	if err := internal.WaitOrStop(ctx, cmd, os.Interrupt, 250*time.Millisecond); err != nil {
+		return nil, fmt.Errorf("listDockerContainers: internal.WaitOrStop() failed: %w", err)
+	}
+	return parseDockerContainers(out.Bytes())
+}
+
+// parseDockerContainers parses the json formatted docker output from docker ps.
+//
+// If there is an error scanning the input, or non-JSON output is encountered, an error is returned.
+func parseDockerContainers(b []byte) ([]dockerContainer, error) {
+	// Parse the output to ensure it is well-formatted in the structure we expect.
+	var containers []dockerContainer
+	// Each output line is it's own JSON object, so unmarshal one line at a time.
+	scanner := bufio.NewScanner(bytes.NewReader(b))
+	for scanner.Scan() {
+		var do dockerContainer
+		if err := json.Unmarshal(scanner.Bytes(), &do); err != nil {
+			return nil, fmt.Errorf("parseDockerContainers: error parsing docker ps output: %w", err)
+		}
+		containers = append(containers, do)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("parseDockerContainers: error reading docker ps output: %w", err)
+	}
+	return containers, nil
 }
 
 func handleSignals() {
@@ -292,8 +361,10 @@ func runInGvisor() {
 }
 
 func makeWorkers() {
+	ctx := context.Background()
+	stats.Record(ctx, mMaxContainers.M(int64(*numWorkers)))
 	for {
-		c, err := startContainer(context.Background())
+		c, err := startContainer(ctx)
 		if err != nil {
 			log.Printf("error starting container: %v", err)
 			time.Sleep(5 * time.Second)
@@ -330,6 +401,12 @@ func setContainerWanted(name string, wanted bool) {
 	} else {
 		delete(containerWanted, name)
 	}
+}
+
+func isContainerWanted(name string) bool {
+	wantedMu.Lock()
+	defer wantedMu.Unlock()
+	return containerWanted[name]
 }
 
 func getContainer(ctx context.Context) (*Container, error) {

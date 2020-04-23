@@ -13,6 +13,7 @@ import (
 	"contrib.go.opencensus.io/exporter/prometheus"
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
@@ -22,6 +23,32 @@ import (
 //  * The views are prefixed with go-playground-sandbox.
 //  * ochttp.KeyServerRoute is added as a tag to label metrics per-route.
 var (
+	mContainers         = stats.Int64("go-playground/sandbox/container_count", "number of sandbox containers", stats.UnitDimensionless)
+	mUnwantedContainers = stats.Int64("go-playground/sandbox/unwanted_container_count", "number of sandbox containers that are unexpectedly running", stats.UnitDimensionless)
+	mMaxContainers      = stats.Int64("go-playground/sandbox/max_container_count", "target number of sandbox containers", stats.UnitDimensionless)
+
+	containerCount = &view.View{
+		Name:        "go-playground/sandbox/container_count",
+		Description: "Number of running sandbox containers",
+		TagKeys:     nil,
+		Measure:     mContainers,
+		Aggregation: view.LastValue(),
+	}
+	unwantedContainerCount = &view.View{
+		Name:        "go-playground/sandbox/unwanted_container_count",
+		Description: "Number of running sandbox containers that are not being tracked by the sandbox",
+		TagKeys:     nil,
+		Measure:     mUnwantedContainers,
+		Aggregation: view.LastValue(),
+	}
+	maxContainerCount = &view.View{
+		Name:        "go-playground/sandbox/max_container_count",
+		Description: "Maximum number of containers to create",
+		TagKeys:     nil,
+		Measure:     mMaxContainers,
+		Aggregation: view.LastValue(),
+	}
+
 	ServerRequestCountView = &view.View{
 		Name:        "go-playground-sandbox/http/server/request_count",
 		Description: "Count of HTTP requests started",
@@ -72,6 +99,9 @@ var (
 // When the sandbox is not running on GCE, it will host metrics through a prometheus HTTP handler.
 func newMetricService() (*metricService, error) {
 	err := view.Register(
+		containerCount,
+		unwantedContainerCount,
+		maxContainerCount,
 		ServerRequestCountView,
 		ServerRequestBytesView,
 		ServerResponseBytesView,
