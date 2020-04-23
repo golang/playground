@@ -75,7 +75,7 @@ func handleFavicon(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleHealthCheck(w http.ResponseWriter, r *http.Request) {
-	if err := s.healthCheck(); err != nil {
+	if err := s.healthCheck(r.Context()); err != nil {
 		http.Error(w, "Health check failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

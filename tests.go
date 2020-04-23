@@ -37,7 +37,7 @@ func (s *server) test() {
 }
 
 func (s *server) runTests() {
-	if err := s.healthCheck(); err != nil {
+	if err := s.healthCheck(context.Background()); err != nil {
 		stdlog.Fatal(err)
 	}
 

@@ -593,17 +593,20 @@ func playgroundGoproxy() string {
 	return "https://proxy.golang.org"
 }
 
-func (s *server) healthCheck() error {
-	ctx := context.Background() // TODO: cap it to some reasonable timeout
-	resp, err := compileAndRun(ctx, &request{Body: healthProg})
+// healthCheck attempts to build a binary from the source in healthProg.
+// It returns any error returned from sandboxBuild, or nil if none is returned.
+func (s *server) healthCheck(ctx context.Context) error {
+	tmpDir, err := ioutil.TempDir("", "sandbox")
+	if err != nil {
+		return fmt.Errorf("error creating temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	br, err := sandboxBuild(ctx, tmpDir, []byte(healthProg), false)
 	if err != nil {
 		return err
 	}
-	if resp.Errors != "" {
-		return fmt.Errorf("compile error: %v", resp.Errors)
-	}
-	if len(resp.Events) != 1 || resp.Events[0].Message != "ok" {
-		return fmt.Errorf("unexpected output: %v", resp.Events)
+	if br.errorMessage != "" {
+		return errors.New(br.errorMessage)
 	}
 	return nil
 }
