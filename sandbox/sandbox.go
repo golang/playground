@@ -117,7 +117,7 @@ func main() {
 	}
 	log.Printf("Go playground sandbox starting.")
 
-	readyContainer = make(chan *Container, *numWorkers)
+	readyContainer = make(chan *Container)
 	runSem = make(chan struct{}, *numWorkers)
 	go handleSignals()
 
@@ -148,7 +148,7 @@ func main() {
 	mux.Handle("/", ochttp.WithRouteTag(http.HandlerFunc(rootHandler), "/"))
 	mux.Handle("/run", ochttp.WithRouteTag(http.HandlerFunc(runHandler), "/run"))
 
-	go makeWorkers()
+	makeWorkers()
 	go internal.PeriodicallyDo(context.Background(), 10*time.Second, func(ctx context.Context, _ time.Time) {
 		countDockerContainers(ctx)
 	})
@@ -364,6 +364,12 @@ func runInGvisor() {
 func makeWorkers() {
 	ctx := context.Background()
 	stats.Record(ctx, mMaxContainers.M(int64(*numWorkers)))
+	for i := 0; i < *numWorkers; i++ {
+		go workerLoop(ctx)
+	}
+}
+
+func workerLoop(ctx context.Context) {
 	for {
 		c, err := startContainer(ctx)
 		if err != nil {
