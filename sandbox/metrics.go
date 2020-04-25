@@ -21,13 +21,12 @@ import (
 	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
 )
 
-// Customizations of ochttp views. Views are updated as follows:
-//  * The views are prefixed with go-playground-sandbox.
-//  * ochttp.KeyServerRoute is added as a tag to label metrics per-route.
 var (
-	mContainers         = stats.Int64("go-playground/sandbox/container_count", "number of sandbox containers", stats.UnitDimensionless)
-	mUnwantedContainers = stats.Int64("go-playground/sandbox/unwanted_container_count", "number of sandbox containers that are unexpectedly running", stats.UnitDimensionless)
-	mMaxContainers      = stats.Int64("go-playground/sandbox/max_container_count", "target number of sandbox containers", stats.UnitDimensionless)
+	kContainerCreateSuccess = tag.MustNewKey("go-playground/sandbox/container_create_success")
+	mContainers             = stats.Int64("go-playground/sandbox/container_count", "number of sandbox containers", stats.UnitDimensionless)
+	mUnwantedContainers     = stats.Int64("go-playground/sandbox/unwanted_container_count", "number of sandbox containers that are unexpectedly running", stats.UnitDimensionless)
+	mMaxContainers          = stats.Int64("go-playground/sandbox/max_container_count", "target number of sandbox containers", stats.UnitDimensionless)
+	mContainerCreateLatency = stats.Float64("go-playground/sandbox/container_create_latency", "", stats.UnitMilliseconds)
 
 	containerCount = &view.View{
 		Name:        "go-playground/sandbox/container_count",
@@ -50,7 +49,25 @@ var (
 		Measure:     mMaxContainers,
 		Aggregation: view.LastValue(),
 	}
+	containerCreateCount = &view.View{
+		Name:        "go-playground/sandbox/container_create_count",
+		Description: "Number of containers created",
+		Measure:     mContainerCreateLatency,
+		TagKeys:     []tag.Key{kContainerCreateSuccess},
+		Aggregation: view.Count(),
+	}
+	containerCreationLatency = &view.View{
+		Name:        "go-playground/sandbox/container_create_latency",
+		Description: "Latency distribution of container creation",
+		Measure:     mContainerCreateLatency,
+		Aggregation: ochttp.DefaultLatencyDistribution,
+	}
+)
 
+// Customizations of ochttp views. Views are updated as follows:
+//  * The views are prefixed with go-playground-sandbox.
+//  * ochttp.KeyServerRoute is added as a tag to label metrics per-route.
+var (
 	ServerRequestCountView = &view.View{
 		Name:        "go-playground-sandbox/http/server/request_count",
 		Description: "Count of HTTP requests started",
@@ -104,6 +121,8 @@ func newMetricService() (*metricService, error) {
 		containerCount,
 		unwantedContainerCount,
 		maxContainerCount,
+		containerCreateCount,
+		containerCreationLatency,
 		ServerRequestCountView,
 		ServerRequestBytesView,
 		ServerResponseBytesView,

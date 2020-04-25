@@ -33,6 +33,7 @@ import (
 
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 	"golang.org/x/playground/internal"
 	"golang.org/x/playground/sandbox/sandboxtypes"
@@ -419,6 +420,17 @@ func getContainer(ctx context.Context) (*Container, error) {
 }
 
 func startContainer(ctx context.Context) (c *Container, err error) {
+	start := time.Now()
+	defer func() {
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+		// Ignore error. The only error can be invalid tag key or value length, which we know are safe.
+		_ = stats.RecordWithTags(ctx, []tag.Mutator{tag.Upsert(kContainerCreateSuccess, status)},
+			mContainerCreateLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
+	}()
+
 	name := "play_run_" + randHex(8)
 	setContainerWanted(name, true)
 	cmd := exec.Command("docker", "run",
