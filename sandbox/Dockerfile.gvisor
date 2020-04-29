@@ -14,5 +14,6 @@ FROM golang/playground-sandbox AS server
 FROM busybox:glibc
 
 COPY --from=server /usr/local/bin/play-sandbox /usr/local/bin/play-sandbox
+COPY --from=server /usr/share/zoneinfo /usr/share/zoneinfo
 
 ENTRYPOINT ["/usr/local/bin/play-sandbox"]
