@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 	<head>
-		<title>The Go Playground</title>
+		<title>The go2go Playground</title>
 		<link rel="stylesheet" href="/static/style.css">
 		{{if .Analytics}}
 		<script async src="https://www.googletagmanager.com/gtag/js?id=UA-11222381-7"></script>
@@ -103,7 +103,11 @@
 	<body itemscope itemtype="http://schema.org/CreativeWork">
 		<input type="button" value="Run" id="embedRun">
 		<div id="banner">
-			<div id="head" itemprop="name">The Go Playground</div>
+			<div id="head" itemprop="name">
+			  The
+				<a href="https://blog.golang.org/generics-next-step">go2go</a>
+				Playground
+			</div>
 			<input type="button" value="Run" id="run">
 			<input type="button" value="Format" id="fmt">
 			<div id="importsBox">
@@ -122,11 +126,8 @@
 			{{end}}
 			<select class="js-playgroundToysEl">
 				<option value="hello.txt">Hello, playground</option>
-				<option value="test.txt">Tests</option>
-				<option value="multi.txt">Multiple files</option>
-				<option value="image.txt">Display image</option>
-				<option value="sleep.txt">Sleep</option>
-				<option value="clear.txt">Clear</option>
+				<option value="min.txt">Min function</option>
+				<option value="queue.txt">Basic queue</option>
 			</select>
 			<input type="button" value="About" id="aboutButton">
 		</div>
@@ -139,17 +140,37 @@
 <p><b>About the Playground</b></p>
 
 <p>
-The Go Playground is a web service that runs on
+The go2go Playground is a web service that runs on
 <a href="https://golang.org/">golang.org</a>'s servers.
 The service receives a Go program, <a href="https://golang.org/cmd/vet/">vets</a>, compiles, links, and
 runs the program inside a sandbox, then returns the output.
 </p>
 
 <p>
-If the program contains <a href="https://golang.org/pkg/testing">tests or examples</a>
-and no main function, the service runs the tests.
-Benchmarks will likely not be supported since the program runs in a sandboxed
-environment with limited resources.
+  <b>
+	  This experimental instance of the playground supports the syntax described in the
+		<a href="https://go.googlesource.com/proposal/+/refs/heads/master/design/go2draft-type-parameters.md">Type Parameters design draft</a>,
+		utilizing the
+		<a href="https://go.googlesource.com/go/+/refs/heads/dev.go2go/README.go2go.md">go2go tool</a>.
+	</b>
+</p>
+
+<p>
+  The best way to provide feedback for the language changes will be on the mailing list golang-nuts@googlegroups.com.
+	Mailing lists are imperfect, but they seem like our best option for initial discussion.
+	When writing about the design draft, please put [generics] at the start of the Subject line and to start different
+	threads for different specific topics.
+</p>
+
+<p>
+  If you find bugs in the generics type checker, the translation tool, or this playground instance they should be
+	filed in the standard Go issue tracker at <a href="https://golang.org/issue/new?title=cmd%2Fgo2go%3A">https://golang.org/issue</a>.
+	Please start the issue title with cmd/go2go:. Note that the issue tracker is not the best place to discuss
+	changes to the language, because it does not provide threading and it is not well suited to lengthy conversations.
+</p>
+
+<p>
+  We look forward to your feedback.
 </p>
 
 <p>
@@ -157,6 +178,11 @@ There are limitations to the programs that can be run in the playground:
 </p>
 
 <ul>
+
+<li>
+Not all features of the normal playground are supported.
+<a href="https://golang.org/issue/39675">This issue</a> tracks feature parity with play.golang.org.
+</li>
 
 <li>
 The playground can use most of the standard library, with some exceptions.
@@ -177,25 +203,8 @@ There are also limits on execution time and on CPU and memory usage.
 </ul>
 
 <p>
-The article "<a href="https://blog.golang.org/playground" target="_blank" rel="noopener">Inside
-the Go Playground</a>" describes how the playground is implemented.
-The source code is available at <a href="https://go.googlesource.com/playground" target="_blank" rel="noopener">
-https://go.googlesource.com/playground</a>.
-</p>
-
-<p>
-The playground uses the latest stable release of Go.<br>
-The current version is <a href="/p/Ztyu2FJaajl">{{.GoVersion}}</a>.
-</p>
-
-<p>
-The playground service is used by more than just the official Go project
-(<a href="https://gobyexample.com/">Go by Example</a> is one other instance)
-and we are happy for you to use it on your own site.
-All we ask is that you
-<a href="mailto:golang-dev@googlegroups.com">contact us first (note this is a public mailing list)</a>,
-use a unique user agent in your requests (so we can identify you),
-and that your service is of benefit to the Go community.
+The source code is available at <a href="https://go.googlesource.com/playground/+/refs/heads/dev.go2go" target="_blank" rel="noopener">
+https://go.googlesource.com/playground/+/refs/heads/dev.go2go</a>.
 </p>
 
 <p>

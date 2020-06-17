@@ -180,3 +180,7 @@ input[type=button],
 	top: 10px;
 	right: 10px;
 }
+
+#importsBox {
+	display: none;
+}

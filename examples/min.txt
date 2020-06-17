@@ -1,0 +1,21 @@
+package main
+
+import (
+	"fmt"
+)
+
+type numeric interface {
+	type int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64
+}
+
+func min(type T numeric)(a, b T) T {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func main() {
+	fmt.Println(min(42, 84))
+	fmt.Println(min(3.14159, 2.7182))
+}

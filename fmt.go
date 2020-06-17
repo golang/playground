@@ -34,7 +34,9 @@ func handleFmt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fixImports := r.FormValue("imports") != ""
+	// TODO(golang.org/issue/39675): goimports does not currently support the
+	// dev.go2go branch.
+	fixImports := r.FormValue("imports") != "" && false
 	for _, f := range fs.files {
 		switch {
 		case path.Ext(f) == ".go":

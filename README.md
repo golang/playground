@@ -56,9 +56,9 @@ Alternatively, to avoid Cloud Build and build locally:
 
 ```bash
 make docker
-docker tag golang/playground:latest gcr.io/golang-org/playground:latest
-docker push gcr.io/golang-org/playground:latest
-gcloud --project=golang-org --account=you@google.com app deploy app.yaml --image-url=gcr.io/golang-org/playground:latest
+docker tag golang/playground-go2go:latest gcr.io/golang-org/playground-go2go:latest
+docker push gcr.io/golang-org/playground-go2go:latest
+gcloud --project=golang-org --account=you@google.com app deploy app.yaml --image-url=gcr.io/golang-org/playground-go2go:latest
 ```
 
 Then:

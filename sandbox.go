@@ -51,8 +51,9 @@ const (
 )
 
 const (
-	goBuildTimeoutError = "timeout running go build"
-	runTimeoutError     = "timeout running program"
+	go2goTranslateTimeoutError = "timeout running go2go translate"
+	goBuildTimeoutError        = "timeout running go build"
+	runTimeoutError            = "timeout running program"
 )
 
 // internalErrors are strings found in responses that will not be cached
@@ -417,6 +418,9 @@ func (b *buildResult) cleanup() error {
 // sandboxBuild builds a Go program and returns a build result that includes the build context.
 //
 // An error is returned if a non-user-correctable error has occurred.
+//
+// TODO(golang.org/issue/39675): for initial simplicity, the go2goplay instance currently supports
+// only single-file, main-package programs.
 func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*buildResult, error) {
 	files, err := splitFiles(in)
 	if err != nil {
@@ -426,14 +430,6 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 	br := new(buildResult)
 	defer br.cleanup()
 	var buildPkgArg = "."
-	if files.Num() == 1 && len(files.Data(progName)) > 0 {
-		buildPkgArg = progName
-		src := files.Data(progName)
-		if code := getTestProg(src); code != nil {
-			br.testParam = "-test.v"
-			files.AddFile(progName, code)
-		}
-	}
 
 	br.useModules = allowModuleDownloads(files)
 	if !files.Contains("go.mod") && br.useModules {
@@ -441,26 +437,41 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 	}
 
 	for f, src := range files.m {
-		// Before multi-file support we required that the
-		// program be in package main, so continue to do that
-		// for now. But permit anything in subdirectories to have other
-		// packages.
-		if !strings.Contains(f, "/") {
-			fset := token.NewFileSet()
-			f, err := parser.ParseFile(fset, f, src, parser.PackageClauseOnly)
-			if err == nil && f.Name.Name != "main" {
-				return &buildResult{errorMessage: "package name must be main"}, nil
-			}
+		fset := token.NewFileSet()
+		pf, err := parser.ParseFile(fset, f, src, parser.PackageClauseOnly)
+		if err == nil && pf.Name.Name != "main" {
+			return &buildResult{errorMessage: "package name must be main"}, nil
 		}
 
-		in := filepath.Join(tmpDir, f)
-		if strings.Contains(f, "/") {
-			if err := os.MkdirAll(filepath.Dir(in), 0755); err != nil {
-				return nil, err
-			}
+		if filepath.Ext(f) == ".go" {
+			f = f + "2" // .go --> .go2 since go2go requires the extension to be .go2
 		}
+		in := filepath.Join(tmpDir, f)
 		if err := ioutil.WriteFile(in, src, 0644); err != nil {
 			return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
+		}
+
+		if filepath.Ext(in) != ".go2" {
+			continue
+		}
+		cmd := exec.Command("/usr/local/go-faketime/pkg/tool/linux_amd64/go2go", "translate", in)
+		cmd.Dir = filepath.Dir(in)
+		out := &bytes.Buffer{}
+		cmd.Stderr, cmd.Stdout = out, out
+		if err := cmd.Start(); err != nil {
+			return nil, fmt.Errorf("error starting go2go translate: %v", err)
+		}
+		ctx, cancel := context.WithTimeout(ctx, maxCompileTime)
+		defer cancel()
+		if err := internal.WaitOrStop(ctx, cmd, os.Interrupt, 250*time.Millisecond); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				br.errorMessage = fmt.Sprintln(go2goTranslateTimeoutError)
+			} else if ee := (*exec.ExitError)(nil); !errors.As(err, &ee) {
+				log.Printf("error go2go translating program: %v", err)
+				return nil, fmt.Errorf("error translating go2go source: %v", err)
+			}
+			br.errorMessage = br.errorMessage + strings.Replace(out.String(), tmpDir+"/", "", -1)
+			return br, nil
 		}
 	}
 
@@ -504,7 +515,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 		}
 		// Return compile errors to the user.
 		// Rewrite compiler errors to strip the tmpDir name.
-		br.errorMessage = br.errorMessage + strings.Replace(string(out.Bytes()), tmpDir+"/", "", -1)
+		br.errorMessage = br.errorMessage + strings.Replace(out.String(), tmpDir+"/", "", -1)
 
 		// "go build", invoked with a file name, puts this odd
 		// message before any compile errors; strip it.

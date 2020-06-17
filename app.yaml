@@ -1,4 +1,4 @@
-service: play
+service: go2goplay
 runtime: custom
 env: flex
 
@@ -13,7 +13,7 @@ automatic_scaling:
   min_num_instances: 5
 
 readiness_check:
-  path: "/_ah/health"
+  path: '/_ah/health'
   check_interval_sec: 10
 
 env_variables:

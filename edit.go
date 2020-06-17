@@ -14,7 +14,8 @@ import (
 	"cloud.google.com/go/datastore"
 )
 
-const hostname = "play.golang.org"
+// TODO(golang.org/issue/39675): parameterize before merging.
+const hostname = "go2goplay.golang.org"
 
 var editTemplate = template.Must(template.ParseFiles("edit.html"))
 
@@ -95,7 +96,13 @@ import (
 	"fmt"
 )
 
+func Print(type T)(s []T) {
+	for _, v := range s {
+		fmt.Print(v)
+	}
+}
+
 func main() {
-	fmt.Println("Hello, playground")
+	Print([]string{"Hello, ", "playground\n"})
 }
 `

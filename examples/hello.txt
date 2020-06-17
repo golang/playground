@@ -4,6 +4,12 @@ import (
 	"fmt"
 )
 
+func Print(type T)(s []T) {
+	for _, v := range s {
+		fmt.Print(v)
+	}
+}
+
 func main() {
-	fmt.Println("Hello, playground")
+	Print([]string{"Hello, ", "playground\n"})
 }

@@ -2,8 +2,6 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-ARG GO_VERSION=go1.14.1
-
 FROM debian:buster AS go-faketime
 LABEL maintainer="golang-dev@googlegroups.com"
 
@@ -13,8 +11,6 @@ RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 ENV GOPATH /go
 ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
 ENV GO_BOOTSTRAP_VERSION go1.14.1
-ARG GO_VERSION
-ENV GO_VERSION ${GO_VERSION}
 
 # Get a version of Go for building the playground
 RUN curl -sSL https://dl.google.com/go/$GO_BOOTSTRAP_VERSION.linux-amd64.tar.gz -o /tmp/go.tar.gz
@@ -30,13 +26,24 @@ ENV GOPROXY=https://proxy.golang.org
 
 # Compile Go at target sandbox version and install standard library with --tags=faketime.
 WORKDIR /usr/local
-RUN git clone https://go.googlesource.com/go go-faketime && cd go-faketime && git reset --hard $GO_VERSION
+RUN git clone https://go.googlesource.com/go go-faketime && cd go-faketime && git checkout dev.go2go
 WORKDIR /usr/local/go-faketime/src
 RUN ./make.bash
 ENV GOROOT /usr/local/go-faketime
 RUN ../bin/go install --tags=faketime std
 
 FROM golang:1.14 as build-playground
+
+# Compile Go using dev.go2go branch to get go2go-compatible go/format.
+WORKDIR /usr/local
+RUN git clone https://go.googlesource.com/go go2go && cd go2go && git checkout dev.go2go
+WORKDIR /usr/local/go2go/src
+RUN ./make.bash
+ENV GOROOT /usr/local/go2go
+
+WORKDIR /
+
+ENV PATH /usr/local/go2go/bin:$PATH
 
 COPY go.mod /go/src/playground/go.mod
 COPY go.sum /go/src/playground/go.sum
@@ -55,8 +62,6 @@ RUN apt-get update && apt-get install -y git ca-certificates --no-install-recomm
 
 COPY --from=go-faketime /usr/local/go-faketime /usr/local/go-faketime
 
-ARG GO_VERSION
-ENV GO_VERSION ${GO_VERSION}
 ENV GOPATH /go
 ENV PATH /usr/local/go-faketime/bin:$GOPATH/bin:$PATH
 
