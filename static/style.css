@@ -60,6 +60,7 @@ a {
 	resize: none;
 	wrap: off;
 	float: right;
+	tab-size: 4;
 }
 #output {
 	position: absolute;
