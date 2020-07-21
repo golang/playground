@@ -96,7 +96,12 @@ import (
 	"fmt"
 )
 
-func Print(type T)(s []T) {
+// The playground now supports parentheses or square brackets (only one at
+// a time) for generic type and function declarations and instantiations.
+// By default, parentheses are expected. To switch to square brackets,
+// the first generic declaration in the source must use square brackets.
+
+func Print[type T](s []T) {
 	for _, v := range s {
 		fmt.Print(v)
 	}
