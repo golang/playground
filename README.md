@@ -7,7 +7,7 @@ https://play.golang.org/
 
 ```bash
 # build the image
-docker build -t playground .
+docker build -t golang/playground .
 ```
 
 ## Running
