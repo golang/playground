@@ -26,6 +26,8 @@ ENV GOPROXY=https://proxy.golang.org
 
 # Compile Go at target sandbox version and install standard library with --tags=faketime.
 WORKDIR /usr/local
+# Don’t use the cached checkout if the HEAD commit is different.
+ADD https://api.github.com/repos/golang/playground/git/refs/heads/dev.go2go version.json
 RUN git clone https://go.googlesource.com/go go-faketime && cd go-faketime && git checkout dev.go2go
 WORKDIR /usr/local/go-faketime/src
 RUN ./make.bash
