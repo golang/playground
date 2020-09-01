@@ -4,13 +4,13 @@ import (
 	"fmt"
 )
 
-type queue(type T) []T
+type queue[T any] []T
 
-func (q *queue(T)) enqueue(v T) {
+func (q *queue[T]) enqueue(v T) {
 	*q = append(*q, v)
 }
 
-func (q *queue(T)) dequeue() (T, bool) {
+func (q *queue[T]) dequeue() (T, bool) {
 	if len(*q) == 0 {
 		var zero T
 		return zero, false
@@ -21,7 +21,7 @@ func (q *queue(T)) dequeue() (T, bool) {
 }
 
 func main() {
-	q := new(queue(int))
+	q := new(queue[int])
 	q.enqueue(5)
 	q.enqueue(6)
 	fmt.Println(q)
