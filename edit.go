@@ -96,12 +96,14 @@ import (
 	"fmt"
 )
 
-// The playground now supports parentheses or square brackets (only one at
-// a time) for generic type and function declarations and instantiations.
-// By default, parentheses are expected. To switch to square brackets,
-// the first generic declaration in the source must use square brackets.
+// The playground now uses square brackets for type parameters. Otherwise,
+// the syntax of type parameter lists matches the one of regular parameter
+// lists except that all type parameters must have a name, and the type
+// parameter list cannot be empty. The predeclared identifier "any" may be
+// used in the position of a type parameter constraint (and only there);
+// it indicates that there are no constraints.
 
-func Print[type T](s []T) {
+func Print[T any](s []T) {
 	for _, v := range s {
 		fmt.Print(v)
 	}
