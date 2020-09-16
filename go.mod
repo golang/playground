@@ -13,7 +13,7 @@ require (
 	go.opencensus.io v0.22.3
 	golang.org/x/build v0.0.0-20190709001953-30c0e6b89ea0
 	golang.org/x/mod v0.2.0
-	golang.org/x/tools v0.0.0-20200420001825-978e26b7c37c
+	golang.org/x/tools v0.0.0-20200312045724-11d5b4c81c7d
 	google.golang.org/api v0.20.0
 	google.golang.org/genproto v0.0.0-20200312145019-da6875a35672
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
