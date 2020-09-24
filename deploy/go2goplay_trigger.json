@@ -1,0 +1,38 @@
+{
+  "id": "0d417735-105e-4887-a8f5-9d37aedbecb9",
+  "description": "Go repository dev.go2go branch trigger for x/playground",
+  "github": {
+    "name": "go",
+    "owner": "golang",
+    "push": {
+      "branch": "^dev\\.go2go$"
+    }
+  },
+  "build": {
+    "steps": [
+      {
+        "name": "gcr.io/cloud-builders/git",
+        "args": [
+          "clone",
+          "-b",
+          "dev.go2go",
+          "--depth",
+          "1",
+          "https://go.googlesource.com/playground"
+        ]
+      },
+      {
+        "dir": "playground",
+        "name": "gcr.io/cloud-builders/gcloud",
+        "args": [
+          "builds",
+          "submit",
+          "--async",
+          "--config",
+          "deploy/deploy.json",
+          "."
+        ]
+      }
+    ]
+  }
+}
