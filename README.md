@@ -1,5 +1,7 @@
 # playground
 
+[![Go Reference](https://pkg.go.dev/badge/golang.org/x/playground.svg)](https://pkg.go.dev/golang.org/x/playground)
+
 This subrepository holds the source for the Go playground:
 https://play.golang.org/
 
