@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"runtime"
 	"strings"
 
@@ -23,6 +24,14 @@ type editData struct {
 	Share     bool
 	Analytics bool
 	GoVersion string
+}
+
+func goVersion() string {
+	// The GO_VERSION env var is set by Dockerfile.
+	if v := os.Getenv("GO_VERSION"); v != "" {
+		return v
+	}
+	return runtime.Version()
 }
 
 func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +90,7 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 		Snippet:   snip,
 		Share:     allowShare(r),
 		Analytics: r.Host == hostname,
-		GoVersion: runtime.Version(),
+		GoVersion: goVersion(),
 	}
 	if err := editTemplate.Execute(w, data); err != nil {
 		s.log.Errorf("editTemplate.Execute(w, %+v): %v", data, err)
