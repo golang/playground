@@ -125,12 +125,15 @@ input[type=button],
 	padding: 0.25em 7px;
 }
 #importsBox input {
-	position: relative;
-	top: -2px;
-	left: 1px;
-	height: 10px;
-	width: 10px;
-	margin-left: 0;
+	flex: none;
+	height: 11px;
+	width: 11px;
+	margin: 0 5px 0 0;
+}
+#importsBox label {
+	display: flex;
+	align-items: center;
+	line-height: 1.2;
 }
 #shareURL {
 	width: 280px;
