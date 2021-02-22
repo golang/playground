@@ -396,8 +396,6 @@ type buildResult struct {
 	goPath string
 	// exePath is the path to the built binary.
 	exePath string
-	// useModules is true if the binary was built with module support.
-	useModules bool
 	// testParam is set if tests should be run when running the binary.
 	testParam string
 	// errorMessage is an error message string to be returned to the user.
@@ -408,7 +406,7 @@ type buildResult struct {
 
 // cleanup cleans up the temporary goPath created when building with module support.
 func (b *buildResult) cleanup() error {
-	if b.useModules && b.goPath != "" {
+	if b.goPath != "" {
 		return os.RemoveAll(b.goPath)
 	}
 	return nil
@@ -435,8 +433,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 		}
 	}
 
-	br.useModules = allowModuleDownloads(files)
-	if !files.Contains("go.mod") && br.useModules {
+	if !files.Contains("go.mod") {
 		files.AddFile("go.mod", []byte("module play\n"))
 	}
 
@@ -471,20 +468,16 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 	cmd.Dir = tmpDir
 	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}
 	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
-	if br.useModules {
-		// Create a GOPATH just for modules to be downloaded
-		// into GOPATH/pkg/mod.
-		cmd.Args = append(cmd.Args, "-modcacherw")
-		br.goPath, err = ioutil.TempDir("", "gopath")
-		if err != nil {
-			log.Printf("error creating temp directory: %v", err)
-			return nil, fmt.Errorf("error creating temp directory: %v", err)
-		}
-		cmd.Env = append(cmd.Env, "GO111MODULE=on", "GOPROXY="+playgroundGoproxy())
-	} else {
-		br.goPath = os.Getenv("GOPATH")              // contains old code.google.com/p/go-tour, etc
-		cmd.Env = append(cmd.Env, "GO111MODULE=off") // in case it becomes on by default later
+	// Create a GOPATH just for modules to be downloaded
+	// into GOPATH/pkg/mod.
+	cmd.Args = append(cmd.Args, "-modcacherw")
+	cmd.Args = append(cmd.Args, "-mod=mod")
+	br.goPath, err = ioutil.TempDir("", "gopath")
+	if err != nil {
+		log.Printf("error creating temp directory: %v", err)
+		return nil, fmt.Errorf("error creating temp directory: %v", err)
 	}
+	cmd.Env = append(cmd.Env, "GO111MODULE=on", "GOPROXY="+playgroundGoproxy())
 	cmd.Args = append(cmd.Args, buildPkgArg)
 	cmd.Env = append(cmd.Env, "GOPATH="+br.goPath)
 	out := &bytes.Buffer{}
@@ -521,7 +514,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 	}
 	if vet {
 		// TODO: do this concurrently with the execution to reduce latency.
-		br.vetOut, err = vetCheckInDir(tmpDir, br.goPath, br.useModules)
+		br.vetOut, err = vetCheckInDir(tmpDir, br.goPath)
 		if err != nil {
 			return nil, fmt.Errorf("running vet: %v", err)
 		}
@@ -565,21 +558,6 @@ func sandboxRun(ctx context.Context, exePath string, testParam string) (sandboxt
 		return execRes, errors.New("error parsing JSON from backend")
 	}
 	return execRes, nil
-}
-
-// allowModuleDownloads reports whether the code snippet in src should be allowed
-// to download modules.
-func allowModuleDownloads(files *fileSet) bool {
-	if files.Num() == 1 && bytes.Contains(files.Data(progName), []byte(`"code.google.com/p/go-tour/`)) {
-		// This domain doesn't exist anymore but we want old snippets using
-		// these packages to still run, so the Dockerfile adds these packages
-		// at this name in $GOPATH. Any snippets using this old name wouldn't
-		// have expected (or been able to use) third-party packages anyway,
-		// so disabling modules and proxy fetches is acceptable.
-		return false
-	}
-	v, _ := strconv.ParseBool(os.Getenv("ALLOW_PLAY_MODULE_DOWNLOADS"))
-	return v
 }
 
 // playgroundGoproxy returns the GOPROXY environment config the playground should use.

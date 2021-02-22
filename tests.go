@@ -41,10 +41,6 @@ func (s *server) runTests() {
 		stdlog.Fatal(err)
 	}
 
-	// Enable module downloads for testing:
-	defer func(old string) { os.Setenv("ALLOW_PLAY_MODULE_DOWNLOADS", old) }(os.Getenv("ALLOW_PLAY_MODULE_DOWNLOADS"))
-	os.Setenv("ALLOW_PLAY_MODULE_DOWNLOADS", "true")
-
 	failed := false
 	for i, t := range tests {
 		stdlog.Printf("testing case %d (%q)...\n", i, t.name)
@@ -178,30 +174,6 @@ func main() {
 	}
 }
 `, want: "timers fired as expected"},
-
-	{
-		name: "old_tour_pkgs_in_gopath",
-		prog: `
-package main
-
-import (
-	"code.google.com/p/go-tour/pic"
-	"code.google.com/p/go-tour/reader"
-	"code.google.com/p/go-tour/tree"
-	"code.google.com/p/go-tour/wc"
-)
-
-var (
-	_ = pic.Show
-	_ = reader.Validate
-	_ = tree.New
-	_ = wc.Test
-)
-
-func main() {
-	println("ok")
-}
-`, want: "ok"},
 	{
 		name: "must_be_package_main",
 		prog: `

@@ -299,37 +299,6 @@ func TestCommandHandler(t *testing.T) {
 	}
 }
 
-func TestAllowModuleDownloads(t *testing.T) {
-	const envKey = "ALLOW_PLAY_MODULE_DOWNLOADS"
-	defer func(old string) { os.Setenv(envKey, old) }(os.Getenv(envKey))
-
-	tests := []struct {
-		src  string
-		env  string
-		want bool
-	}{
-		{src: "package main", want: true},
-		{src: "package main", env: "false", want: false},
-		{src: `import "code.google.com/p/go-tour/"`, want: false},
-	}
-	for i, tt := range tests {
-		if tt.env != "" {
-			os.Setenv(envKey, tt.env)
-		} else {
-			os.Setenv(envKey, "true")
-		}
-		files, err := splitFiles([]byte(tt.src))
-		if err != nil {
-			t.Errorf("%d. splitFiles = %v", i, err)
-			continue
-		}
-		got := allowModuleDownloads(files)
-		if got != tt.want {
-			t.Errorf("%d. allow = %v; want %v; files:\n%s", i, got, tt.want, filesAsString(files))
-		}
-	}
-}
-
 func TestPlaygroundGoproxy(t *testing.T) {
 	const envKey = "PLAY_GOPROXY"
 	defer os.Setenv(envKey, os.Getenv(envKey))

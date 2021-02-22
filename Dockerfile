@@ -2,48 +2,74 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-ARG GO_VERSION=go1.14.1
+# The playground builds Go from a bootstrap version for two reasons:
+# - The playground deployment is triggered before the artifacts are
+#   published for the latest version of Go.
+# - The sandbox builds the Go standard library with a custom build
+#   flag called faketime.
 
-FROM debian:buster AS go-faketime
+# GO_VERSION is provided by Cloud Build, and is set to the latest
+# version of Go. See the configuration in the deploy directory.
+ARG GO_VERSION=go1.16
+
+############################################################################
+# Build Go at GO_VERSION, and build faketime standard library.
+FROM debian:buster AS build-go
 LABEL maintainer="golang-dev@googlegroups.com"
 
 ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
 RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 
 ENV GOPATH /go
-ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
-ENV GO_BOOTSTRAP_VERSION go1.14.1
+ENV GOROOT_BOOTSTRAP=/usr/local/go-bootstrap
+ENV GO_BOOTSTRAP_VERSION go1.16
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
 
-# Get a version of Go for building the playground
+# Get a bootstrap version of Go for building GO_VERSION. At the time
+# of this Dockerfile being built, GO_VERSION's artifacts may not yet
+# be published.
 RUN curl -sSL https://dl.google.com/go/$GO_BOOTSTRAP_VERSION.linux-amd64.tar.gz -o /tmp/go.tar.gz
 RUN curl -sSL https://dl.google.com/go/$GO_BOOTSTRAP_VERSION.linux-amd64.tar.gz.sha256 -o /tmp/go.tar.gz.sha256
 RUN echo "$(cat /tmp/go.tar.gz.sha256) /tmp/go.tar.gz" | sha256sum -c -
-RUN mkdir -p /usr/local/go
-RUN tar --strip=1 -C /usr/local/go -vxzf /tmp/go.tar.gz
+RUN mkdir -p $GOROOT_BOOTSTRAP
+RUN tar --strip=1 -C $GOROOT_BOOTSTRAP -vxzf /tmp/go.tar.gz
 
 RUN mkdir /gocache
 ENV GOCACHE /gocache
 ENV GO111MODULE on
 ENV GOPROXY=https://proxy.golang.org
 
-# Compile Go at target sandbox version and install standard library with --tags=faketime.
+# Compile Go at target version in /usr/local/go.
 WORKDIR /usr/local
-RUN git clone https://go.googlesource.com/go go-faketime && cd go-faketime && git reset --hard $GO_VERSION
-WORKDIR /usr/local/go-faketime/src
+RUN git clone https://go.googlesource.com/go go && cd go && git reset --hard $GO_VERSION
+WORKDIR /usr/local/go/src
 RUN ./make.bash
+
+# Make a copy in /usr/local/go-faketime where the standard library
+# is installed with -tags=faketime.
+RUN cp -R /usr/local/go /usr/local/go-faketime
 ENV GOROOT /usr/local/go-faketime
+WORKDIR /usr/local/go-faketime/src
 RUN ../bin/go install --tags=faketime std
 
-FROM golang:1.14 as build-playground
+############################################################################
+# Build playground web server.
+FROM debian:buster as build-playground
 
+RUN apt-get update && apt-get install -y ca-certificates --no-install-recommends
+# Build playground from Go built at GO_VERSION.
+COPY --from=build-go /usr/local/go /usr/local/go
+ENV GOROOT /usr/local/go
+ENV GOPATH /go
+ENV PATH="/go/bin:/usr/local/go/bin:${PATH}"
+# Cache dependencies for efficient Dockerfile building.
 COPY go.mod /go/src/playground/go.mod
 COPY go.sum /go/src/playground/go.sum
 WORKDIR /go/src/playground
 RUN go mod download
 
-# Add and compile playground daemon
+# Add and compile playground daemon.
 COPY . /go/src/playground/
 RUN go install
 
@@ -53,43 +79,19 @@ FROM debian:buster
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
-COPY --from=go-faketime /usr/local/go-faketime /usr/local/go-faketime
+COPY --from=build-go /usr/local/go-faketime /usr/local/go-faketime
 
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
 ENV GOPATH /go
-ENV PATH /usr/local/go-faketime/bin:$GOPATH/bin:$PATH
-
-# Add and compile tour packages
-RUN go get \
-    golang.org/x/tour/pic \
-    golang.org/x/tour/reader \
-    golang.org/x/tour/tree \
-    golang.org/x/tour/wc \
-    golang.org/x/talks/content/2016/applicative/google && \
-    rm -rf $GOPATH/src/golang.org/x/tour/.git && \
-    rm -rf $GOPATH/src/golang.org/x/talks/.git
-
-# Add tour packages under their old import paths (so old snippets still work)
-RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
-    cp -R $GOPATH/src/golang.org/x/tour/* $GOPATH/src/code.google.com/p/go-tour/ && \
-    sed -i 's_// import_// public import_' $(find $GOPATH/src/code.google.com/p/go-tour/ -name *.go) && \
-    go install \
-    code.google.com/p/go-tour/pic \
-    code.google.com/p/go-tour/reader \
-    code.google.com/p/go-tour/tree \
-    code.google.com/p/go-tour/wc
+ENV PATH="/go/bin:/usr/local/go-faketime/bin:${PATH}"
 
 RUN mkdir /app
-
 COPY --from=build-playground /go/bin/playground /app
 COPY edit.html /app
 COPY static /app/static
 COPY examples /app/examples
 WORKDIR /app
-
-# Whether we allow third-party imports via proxy.golang.org:
-ENV ALLOW_PLAY_MODULE_DOWNLOADS true
 
 EXPOSE 8080
 ENTRYPOINT ["/app/playground"]
