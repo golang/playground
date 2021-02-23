@@ -12,6 +12,6 @@ write_files:
     }
 
 runcmd:
-- curl -L -o /var/lib/docker/runsc https://storage.googleapis.com/go-builder-data/runsc-1.0.1
+- curl -L -o /var/lib/docker/runsc https://storage.googleapis.com/gvisor/releases/release/latest/x86_64/runsc
 - chmod +x /var/lib/docker/runsc
 - systemctl reload docker.service
