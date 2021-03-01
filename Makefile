@@ -3,11 +3,12 @@ CLOUDBUILD_PLAYGROUND_TRIGGER_ID := $(shell jq -r .id ${CLOUDBUILD_PLAYGROUND_TR
 CLOUDBUILD_GO_TRIGGER_JSON := deploy/go_trigger.json
 CLOUDBUILD_GO_TRIGGER_ID := $(shell jq -r .id ${CLOUDBUILD_GO_TRIGGER_JSON})
 GCLOUD_ACCESS_TOKEN := $(shell gcloud auth print-access-token)
+LATEST_GO := $(shell go run ./cmd/latestgo)
 
 .PHONY: docker test update-cloudbuild-trigger
 
 docker:
-	docker build -t golang/playground .
+	docker build --build-arg GO_VERSION=$(LATEST_GO) -t golang/playground .
 
 runlocal:
 	docker network create sandnet || true
