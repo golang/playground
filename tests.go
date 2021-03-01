@@ -567,4 +567,18 @@ func main() {
 
 }
 `, want: "2012-07-09 05:02:00 +0200 CEST\n2012-07-09 00:00:00 +0200 CEST\n"},
+	{
+		name: "cgo_enabled_0",
+		prog: `
+package main
+
+import (
+	"fmt"
+	"net"
+)
+
+func main() {
+	fmt.Println(net.ParseIP("1.2.3.4"))
+}
+`, want: "1.2.3.4\n"},
 }

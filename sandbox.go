@@ -468,6 +468,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 	cmd.Dir = tmpDir
 	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}
 	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
+	cmd.Env = append(cmd.Env, "CGO_ENABLED=0")
 	// Create a GOPATH just for modules to be downloaded
 	// into GOPATH/pkg/mod.
 	cmd.Args = append(cmd.Args, "-modcacherw")
