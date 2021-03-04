@@ -67,26 +67,6 @@ COPY --from=go-faketime /usr/local/go-faketime /usr/local/go-faketime
 ENV GOPATH /go
 ENV PATH /usr/local/go-faketime/bin:$GOPATH/bin:$PATH
 
-# Add and compile tour packages
-RUN go get \
-    golang.org/x/tour/pic \
-    golang.org/x/tour/reader \
-    golang.org/x/tour/tree \
-    golang.org/x/tour/wc \
-    golang.org/x/talks/content/2016/applicative/google && \
-    rm -rf $GOPATH/src/golang.org/x/tour/.git && \
-    rm -rf $GOPATH/src/golang.org/x/talks/.git
-
-# Add tour packages under their old import paths (so old snippets still work)
-RUN mkdir -p $GOPATH/src/code.google.com/p/go-tour && \
-    cp -R $GOPATH/src/golang.org/x/tour/* $GOPATH/src/code.google.com/p/go-tour/ && \
-    sed -i 's_// import_// public import_' $(find $GOPATH/src/code.google.com/p/go-tour/ -name *.go) && \
-    go install \
-    code.google.com/p/go-tour/pic \
-    code.google.com/p/go-tour/reader \
-    code.google.com/p/go-tour/tree \
-    code.google.com/p/go-tour/wc
-
 RUN mkdir /app
 
 COPY --from=build-playground /go/bin/playground /app

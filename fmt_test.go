@@ -33,13 +33,6 @@ func TestHandleFmt(t *testing.T) {
 			want:   "package main\n\nfunc main() {}\n",
 		},
 		{
-			name:    "classic_goimports",
-			method:  http.MethodPost,
-			body:    " package main\nvar _ = fmt.Printf",
-			imports: true,
-			want:    "package main\n\nimport \"fmt\"\n\nvar _ = fmt.Printf\n",
-		},
-		{
 			name:   "single_go_with_header",
 			method: http.MethodPost,
 			body:   "-- prog.go --\n  package main",

@@ -178,30 +178,6 @@ func main() {
 	}
 }
 `, want: "timers fired as expected"},
-
-	{
-		name: "old_tour_pkgs_in_gopath",
-		prog: `
-package main
-
-import (
-	"code.google.com/p/go-tour/pic"
-	"code.google.com/p/go-tour/reader"
-	"code.google.com/p/go-tour/tree"
-	"code.google.com/p/go-tour/wc"
-)
-
-var (
-	_ = pic.Show
-	_ = reader.Validate
-	_ = tree.New
-	_ = wc.Test
-)
-
-func main() {
-	println("ok")
-}
-`, want: "ok"},
 	{
 		name: "must_be_package_main",
 		prog: `
@@ -275,143 +251,6 @@ func main() {
 		},
 	},
 	{
-		name: "test_passes",
-		prog: `
-package main
-
-import "testing"
-
-func TestSanity(t *testing.T) {
-	if 1+1 != 2 {
-		t.Error("uhh...")
-	}
-}
-`, want: `=== RUN   TestSanity
---- PASS: TestSanity (0.00s)
-PASS`},
-
-	{
-		name: "test_without_import",
-		prog: `
-package main
-
-func TestSanity(t *testing.T) {
-	t.Error("uhh...")
-}
-
-func ExampleNotExecuted() {
-	// Output: it should not run
-}
-`, want: "", errors: "./prog.go:4:20: undefined: testing\n"},
-
-	{
-		name: "test_with_import_ignored",
-		prog: `
-package main
-
-import (
-	"fmt"
-	"testing"
-)
-
-func TestSanity(t *testing.T) {
-	t.Error("uhh...")
-}
-
-func main() {
-	fmt.Println("test")
-}
-`, want: "test"},
-
-	{
-		name: "example_runs",
-		prog: `
-package main//comment
-
-import "fmt"
-
-func ExampleOutput() {
-	fmt.Println("The output")
-	// Output: The output
-}
-`, want: `=== RUN   ExampleOutput
---- PASS: ExampleOutput (0.00s)
-PASS`},
-
-	{
-		name: "example_unordered",
-		prog: `
-package main//comment
-
-import "fmt"
-
-func ExampleUnorderedOutput() {
-	fmt.Println("2")
-	fmt.Println("1")
-	fmt.Println("3")
-	// Unordered output: 3
-	// 2
-	// 1
-}
-`, want: `=== RUN   ExampleUnorderedOutput
---- PASS: ExampleUnorderedOutput (0.00s)
-PASS`},
-
-	{
-		name: "example_fail",
-		prog: `
-package main
-
-import "fmt"
-
-func ExampleEmptyOutput() {
-	// Output:
-}
-
-func ExampleEmptyOutputFail() {
-	fmt.Println("1")
-	// Output:
-}
-`, want: `=== RUN   ExampleEmptyOutput
---- PASS: ExampleEmptyOutput (0.00s)
-=== RUN   ExampleEmptyOutputFail
---- FAIL: ExampleEmptyOutputFail (0.00s)
-got:
-1
-want:
-
-FAIL`},
-
-	// Run program without executing this example function.
-	{
-		name: "example_no_output_skips_run",
-		prog: `
-package main
-
-func ExampleNoOutput() {
-	panic(1)
-}
-`, want: `testing: warning: no tests to run
-PASS`},
-
-	{
-		name: "example_output",
-		prog: `
-package main
-
-import "fmt"
-
-func ExampleShouldNotRun() {
-	fmt.Println("The output")
-	// Output: The output
-}
-
-func main() {
-	fmt.Println("Main")
-}
-`, want: "Main"},
-
-	{
 		name: "stdout_stderr_merge",
 		prog: `
 package main
@@ -458,21 +297,10 @@ func main() {
 			{"B\n", "stderr", time.Second - 2*time.Nanosecond},
 			{"A\n", "stdout", time.Second},
 		}},
-
-	{
-		name: "third_party_imports",
-		prog: `
-package main
-import ("fmt"; "github.com/bradfitz/iter")
-func main() { for i := range iter.N(5) { fmt.Println(i) } }
-`,
-		want: "0\n1\n2\n3\n4\n",
-	},
-
 	{
 		name:          "compile_with_vet",
 		withVet:       true,
-		wantVetErrors: "./prog.go:5:2: Printf format %v reads arg #1, but call has 0 args\n",
+		wantVetErrors: "./prog.go2:5: Printf format %v reads arg #1, but call has 0 args\n",
 		prog: `
 package main
 import "fmt"
@@ -491,61 +319,6 @@ import "fmt"
 func main() {
 	fmt.Printf("hi %v")
 }
-`,
-	},
-
-	{
-		name:          "compile_modules_with_vet",
-		withVet:       true,
-		wantVetErrors: "./prog.go:6:2: Printf format %v reads arg #1, but call has 0 args\n",
-		prog: `
-package main
-import ("fmt"; "github.com/bradfitz/iter")
-func main() {
-	for i := range iter.N(5) { fmt.Println(i) }
-	fmt.Printf("hi %v")
-}
-`,
-	},
-
-	{
-		name: "multi_file_basic",
-		prog: `
-package main
-const foo = "bar"
-
--- two.go --
-package main
-func main() {
-  println(foo)
-}
-`,
-		wantEvents: []Event{
-			{"bar\n", "stderr", 0},
-		},
-	},
-
-	{
-		name:    "multi_file_use_package",
-		withVet: true,
-		prog: `
-package main
-
-import "play.test/foo"
-
-func main() {
-    foo.Hello()
-}
-
--- go.mod --
-module play.test
-
--- foo/foo.go --
-package foo
-
-import "fmt"
-
-func Hello() { fmt.Println("hello world") }
 `,
 	},
 	{

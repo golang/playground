@@ -63,7 +63,6 @@ func TestEdit(t *testing.T) {
 		respBody   []byte
 	}{
 		{"OPTIONS no-op", http.MethodOptions, "https://play.golang.org/p/foo", http.StatusOK, nil, nil},
-		{"foo.play.golang.org to play.golang.org", http.MethodGet, "https://foo.play.golang.org", http.StatusFound, map[string]string{"Location": "https://play.golang.org"}, nil},
 		{"Non-existent page", http.MethodGet, "https://play.golang.org/foo", http.StatusNotFound, nil, nil},
 		{"Unknown snippet", http.MethodGet, "https://play.golang.org/p/foo", http.StatusNotFound, nil, nil},
 		{"Existing snippet", http.MethodGet, "https://play.golang.org/p/" + id, http.StatusOK, nil, nil},
@@ -296,37 +295,6 @@ func TestCommandHandler(t *testing.T) {
 				t.Errorf("s.Cache.Get(%q) mismatch (-want +got):\n%s", cacheKey("test", sbreq.Body), diff)
 			}
 		})
-	}
-}
-
-func TestAllowModuleDownloads(t *testing.T) {
-	const envKey = "ALLOW_PLAY_MODULE_DOWNLOADS"
-	defer func(old string) { os.Setenv(envKey, old) }(os.Getenv(envKey))
-
-	tests := []struct {
-		src  string
-		env  string
-		want bool
-	}{
-		{src: "package main", want: true},
-		{src: "package main", env: "false", want: false},
-		{src: `import "code.google.com/p/go-tour/"`, want: false},
-	}
-	for i, tt := range tests {
-		if tt.env != "" {
-			os.Setenv(envKey, tt.env)
-		} else {
-			os.Setenv(envKey, "true")
-		}
-		files, err := splitFiles([]byte(tt.src))
-		if err != nil {
-			t.Errorf("%d. splitFiles = %v", i, err)
-			continue
-		}
-		got := allowModuleDownloads(files)
-		if got != tt.want {
-			t.Errorf("%d. allow = %v; want %v; files:\n%s", i, got, tt.want, filesAsString(files))
-		}
 	}
 }
 

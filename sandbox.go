@@ -14,8 +14,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/doc"
 	"go/parser"
 	"go/token"
 	"io"
@@ -29,7 +27,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -184,30 +181,6 @@ func cacheKey(prefix, body string) string {
 	return fmt.Sprintf("%s-%s-%x", prefix, runtime.Version(), h.Sum(nil))
 }
 
-// isTestFunc tells whether fn has the type of a testing function.
-func isTestFunc(fn *ast.FuncDecl) bool {
-	if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 ||
-		fn.Type.Params.List == nil ||
-		len(fn.Type.Params.List) != 1 ||
-		len(fn.Type.Params.List[0].Names) > 1 {
-		return false
-	}
-	ptr, ok := fn.Type.Params.List[0].Type.(*ast.StarExpr)
-	if !ok {
-		return false
-	}
-	// We can't easily check that the type is *testing.T
-	// because we don't know how testing has been imported,
-	// but at least check that it's *T or *something.T.
-	if name, ok := ptr.X.(*ast.Ident); ok && name.Name == "T" {
-		return true
-	}
-	if sel, ok := ptr.X.(*ast.SelectorExpr); ok && sel.Sel.Name == "T" {
-		return true
-	}
-	return false
-}
-
 // isTest tells whether name looks like a test (or benchmark, according to prefix).
 // It is a Test (say) if there is a character after Test that is not a lower-case letter.
 // We don't want mistaken Testimony or erroneous Benchmarking.
@@ -221,119 +194,6 @@ func isTest(name, prefix string) bool {
 	r, _ := utf8.DecodeRuneInString(name[len(prefix):])
 	return !unicode.IsLower(r)
 }
-
-// getTestProg returns source code that executes all valid tests and examples in src.
-// If the main function is present or there are no tests or examples, it returns nil.
-// getTestProg emulates the "go test" command as closely as possible.
-// Benchmarks are not supported because of sandboxing.
-func getTestProg(src []byte) []byte {
-	fset := token.NewFileSet()
-	// Early bail for most cases.
-	f, err := parser.ParseFile(fset, progName, src, parser.ImportsOnly)
-	if err != nil || f.Name.Name != "main" {
-		return nil
-	}
-
-	// importPos stores the position to inject the "testing" import declaration, if needed.
-	importPos := fset.Position(f.Name.End()).Offset
-
-	var testingImported bool
-	for _, s := range f.Imports {
-		if s.Path.Value == `"testing"` && s.Name == nil {
-			testingImported = true
-			break
-		}
-	}
-
-	// Parse everything and extract test names.
-	f, err = parser.ParseFile(fset, progName, src, parser.ParseComments)
-	if err != nil {
-		return nil
-	}
-
-	var tests []string
-	for _, d := range f.Decls {
-		n, ok := d.(*ast.FuncDecl)
-		if !ok {
-			continue
-		}
-		name := n.Name.Name
-		switch {
-		case name == "main":
-			// main declared as a method will not obstruct creation of our main function.
-			if n.Recv == nil {
-				return nil
-			}
-		case isTest(name, "Test") && isTestFunc(n):
-			tests = append(tests, name)
-		}
-	}
-
-	// Tests imply imported "testing" package in the code.
-	// If there is no import, bail to let the compiler produce an error.
-	if !testingImported && len(tests) > 0 {
-		return nil
-	}
-
-	// We emulate "go test". An example with no "Output" comment is compiled,
-	// but not executed. An example with no text after "Output:" is compiled,
-	// executed, and expected to produce no output.
-	var ex []*doc.Example
-	// exNoOutput indicates whether an example with no output is found.
-	// We need to compile the program containing such an example even if there are no
-	// other tests or examples.
-	exNoOutput := false
-	for _, e := range doc.Examples(f) {
-		if e.Output != "" || e.EmptyOutput {
-			ex = append(ex, e)
-		}
-		if e.Output == "" && !e.EmptyOutput {
-			exNoOutput = true
-		}
-	}
-
-	if len(tests) == 0 && len(ex) == 0 && !exNoOutput {
-		return nil
-	}
-
-	if !testingImported && (len(ex) > 0 || exNoOutput) {
-		// In case of the program with examples and no "testing" package imported,
-		// add import after "package main" without modifying line numbers.
-		importDecl := []byte(`;import "testing";`)
-		src = bytes.Join([][]byte{src[:importPos], importDecl, src[importPos:]}, nil)
-	}
-
-	data := struct {
-		Tests    []string
-		Examples []*doc.Example
-	}{
-		tests,
-		ex,
-	}
-	code := new(bytes.Buffer)
-	if err := testTmpl.Execute(code, data); err != nil {
-		panic(err)
-	}
-	src = append(src, code.Bytes()...)
-	return src
-}
-
-var testTmpl = template.Must(template.New("main").Parse(`
-func main() {
-	matchAll := func(t string, pat string) (bool, error) { return true, nil }
-	tests := []testing.InternalTest{
-{{range .Tests}}
-		{"{{.}}", {{.}}},
-{{end}}
-	}
-	examples := []testing.InternalExample{
-{{range .Examples}}
-		{"Example{{.Name}}", Example{{.Name}}, {{printf "%q" .Output}}, {{.Unordered}}},
-{{end}}
-	}
-	testing.Main(matchAll, tests, nil, examples)
-}
-`))
 
 var failedTestPattern = "--- FAIL"
 
@@ -578,19 +438,11 @@ func sandboxRun(ctx context.Context, exePath string, testParam string) (sandboxt
 	return execRes, nil
 }
 
-// allowModuleDownloads reports whether the code snippet in src should be allowed
-// to download modules.
-func allowModuleDownloads(files *fileSet) bool {
-	if files.Num() == 1 && bytes.Contains(files.Data(progName), []byte(`"code.google.com/p/go-tour/`)) {
-		// This domain doesn't exist anymore but we want old snippets using
-		// these packages to still run, so the Dockerfile adds these packages
-		// at this name in $GOPATH. Any snippets using this old name wouldn't
-		// have expected (or been able to use) third-party packages anyway,
-		// so disabling modules and proxy fetches is acceptable.
-		return false
-	}
-	v, _ := strconv.ParseBool(os.Getenv("ALLOW_PLAY_MODULE_DOWNLOADS"))
-	return v
+// allowModuleDownloads reports whether the code snippet in src should
+// be allowed to download modules.
+func allowModuleDownloads(_ *fileSet) bool {
+	// Disabled for go2go.
+	return false
 }
 
 // playgroundGoproxy returns the GOPROXY environment config the playground should use.
