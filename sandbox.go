@@ -44,8 +44,9 @@ import (
 )
 
 const (
-	maxCompileTime = 5 * time.Second
-	maxRunTime     = 5 * time.Second
+	// Time for 'go build' to download 3rd-party modules and compile.
+	maxBuildTime = 10 * time.Second
+	maxRunTime   = 5 * time.Second
 
 	// progName is the implicit program name written to the temp
 	// dir and used in compiler and vet errors.
@@ -501,7 +502,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("error starting go build: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, maxCompileTime)
+	ctx, cancel := context.WithTimeout(ctx, maxBuildTime)
 	defer cancel()
 	if err := internal.WaitOrStop(ctx, cmd, os.Interrupt, 250*time.Millisecond); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
