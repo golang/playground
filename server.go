@@ -5,12 +5,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
+	"golang.org/x/playground/internal/metrics"
 	"golang.org/x/tools/godoc/static"
 )
 
@@ -42,6 +45,17 @@ func newServer(options ...func(s *server) error) (*server, error) {
 		if fi, _ := os.Stat(execpath); fi != nil {
 			s.modtime = fi.ModTime()
 		}
+	}
+	gr, err := metrics.GAEResource(context.Background())
+	if err != nil {
+		s.log.Printf("metrics.GaeService() = _, %q", err)
+	}
+	ms, err := metrics.NewService(gr, views)
+	if err != nil {
+		s.log.Printf("Failed to initialize metrics: metrics.NewService() = _, %q. (not on GCP?)", err)
+	}
+	if ms != nil && !metadata.OnGCE() {
+		s.mux.Handle("/statusz", ms)
 	}
 	s.init()
 	return s, nil

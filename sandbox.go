@@ -36,6 +36,8 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/bradfitz/gomemcache/memcache"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"golang.org/x/playground/internal"
 	"golang.org/x/playground/internal/gcpdial"
 	"golang.org/x/playground/sandbox/sandboxtypes"
@@ -415,13 +417,25 @@ func (b *buildResult) cleanup() error {
 // sandboxBuild builds a Go program and returns a build result that includes the build context.
 //
 // An error is returned if a non-user-correctable error has occurred.
-func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*buildResult, error) {
+func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *buildResult, err error) {
+	start := time.Now()
+	defer func() {
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+		// Ignore error. The only error can be invalid tag key or value
+		// length, which we know are safe.
+		stats.RecordWithTags(ctx, []tag.Mutator{tag.Upsert(kGoBuildSuccess, status)},
+			mGoBuildLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
+	}()
+
 	files, err := splitFiles(in)
 	if err != nil {
 		return &buildResult{errorMessage: err.Error()}, nil
 	}
 
-	br := new(buildResult)
+	br = new(buildResult)
 	defer br.cleanup()
 	var buildPkgArg = "."
 	if files.Num() == 1 && len(files.Data(progName)) > 0 {
@@ -515,7 +529,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 	}
 	if vet {
 		// TODO: do this concurrently with the execution to reduce latency.
-		br.vetOut, err = vetCheckInDir(tmpDir, br.goPath)
+		br.vetOut, err = vetCheckInDir(ctx, tmpDir, br.goPath)
 		if err != nil {
 			return nil, fmt.Errorf("running vet: %v", err)
 		}
@@ -524,8 +538,18 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (*bui
 }
 
 // sandboxRun runs a Go binary in a sandbox environment.
-func sandboxRun(ctx context.Context, exePath string, testParam string) (sandboxtypes.Response, error) {
-	var execRes sandboxtypes.Response
+func sandboxRun(ctx context.Context, exePath string, testParam string) (execRes sandboxtypes.Response, err error) {
+	start := time.Now()
+	defer func() {
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+		// Ignore error. The only error can be invalid tag key or value
+		// length, which we know are safe.
+		stats.RecordWithTags(ctx, []tag.Mutator{tag.Upsert(kGoBuildSuccess, status)},
+			mGoRunLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
+	}()
 	exeBytes, err := ioutil.ReadFile(exePath)
 	if err != nil {
 		return execRes, err

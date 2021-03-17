@@ -12,6 +12,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 )
 
 // vetCheck runs the "vet" tool on the source code in req.Body.
@@ -33,7 +37,7 @@ func vetCheck(ctx context.Context, req *request) (*response, error) {
 	if err := ioutil.WriteFile(in, []byte(req.Body), 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
-	vetOutput, err := vetCheckInDir(tmpDir, os.Getenv("GOPATH"))
+	vetOutput, err := vetCheckInDir(ctx, tmpDir, os.Getenv("GOPATH"))
 	if err != nil {
 		// This is about errors running vet, not vet returning output.
 		return nil, err
@@ -46,7 +50,19 @@ func vetCheck(ctx context.Context, req *request) (*response, error) {
 // go vet was able to run, not whether vet reported problem. The
 // returned value is ("", nil) if vet successfully found nothing,
 // and (non-empty, nil) if vet ran and found issues.
-func vetCheckInDir(dir, goPath string) (output string, execErr error) {
+func vetCheckInDir(ctx context.Context, dir, goPath string) (output string, execErr error) {
+	start := time.Now()
+	defer func() {
+		status := "success"
+		if execErr != nil {
+			status = "error"
+		}
+		// Ignore error. The only error can be invalid tag key or value
+		// length, which we know are safe.
+		stats.RecordWithTags(ctx, []tag.Mutator{tag.Upsert(kGoVetSuccess, status)},
+			mGoVetLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
+	}()
+
 	cmd := exec.Command("go", "vet")
 	cmd.Dir = dir
 	// Linux go binary is not built with CGO_ENABLED=0.
