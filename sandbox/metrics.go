@@ -5,20 +5,10 @@
 package main
 
 import (
-	"errors"
-	"fmt"
-	"net/http"
-	"path"
-	"time"
-
-	"cloud.google.com/go/compute/metadata"
-	"contrib.go.opencensus.io/exporter/prometheus"
-	"contrib.go.opencensus.io/exporter/stackdriver"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
-	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
 )
 
 var (
@@ -112,148 +102,18 @@ var (
 	}
 )
 
-// newMetricService initializes a *metricService.
-//
-// The metricService returned is configured to send metric data to StackDriver.
-// When the sandbox is not running on GCE, it will host metrics through a prometheus HTTP handler.
-func newMetricService() (*metricService, error) {
-	err := view.Register(
-		containerCount,
-		unwantedContainerCount,
-		maxContainerCount,
-		containerCreateCount,
-		containerCreationLatency,
-		ServerRequestCountView,
-		ServerRequestBytesView,
-		ServerResponseBytesView,
-		ServerLatencyView,
-		ServerRequestCountByMethod,
-		ServerResponseCountByStatusCode)
-	if err != nil {
-		return nil, err
-	}
-
-	if !metadata.OnGCE() {
-		view.SetReportingPeriod(5 * time.Second)
-		pe, err := prometheus.NewExporter(prometheus.Options{})
-		if err != nil {
-			return nil, fmt.Errorf("newMetricsService(): prometheus.NewExporter: %w", err)
-		}
-		view.RegisterExporter(pe)
-		return &metricService{pExporter: pe}, nil
-	}
-
-	projID, err := metadata.ProjectID()
-	if err != nil {
-		return nil, err
-	}
-	gr, err := gceResource("go-playground-sandbox")
-	if err != nil {
-		return nil, err
-	}
-
-	sd, err := stackdriver.NewExporter(stackdriver.Options{
-		ProjectID:         projID,
-		MonitoredResource: gr,
-		ReportingInterval: time.Minute, // Minimum interval for stackdriver is 1 minute.
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Minimum interval for stackdriver is 1 minute.
-	view.SetReportingPeriod(time.Minute)
-	// Start the metrics exporter.
-	if err := sd.StartMetricsExporter(); err != nil {
-		return nil, err
-	}
-
-	return &metricService{sdExporter: sd}, nil
-}
-
-// metricService controls metric exporters.
-type metricService struct {
-	sdExporter *stackdriver.Exporter
-	pExporter  *prometheus.Exporter
-}
-
-func (m *metricService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if m.pExporter != nil {
-		m.pExporter.ServeHTTP(w, r)
-		return
-	}
-	http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-}
-
-// Stop flushes metrics and stops exporting. Stop should be called before exiting.
-func (m *metricService) Stop() {
-	if sde := m.sdExporter; sde != nil {
-		// Flush any unsent data before exiting.
-		sde.Flush()
-
-		sde.StopMetricsExporter()
-	}
-}
-
-// monitoredResource wraps a *mrpb.MonitoredResource to implement the
-// monitoredresource.MonitoredResource interface.
-type monitoredResource mrpb.MonitoredResource
-
-func (r *monitoredResource) MonitoredResource() (resType string, labels map[string]string) {
-	return r.Type, r.Labels
-}
-
-// gceResource populates a monitoredResource with GCE Metadata.
-//
-// The returned monitoredResource will have the type set to "generic_task".
-func gceResource(jobName string) (*monitoredResource, error) {
-	projID, err := metadata.ProjectID()
-	if err != nil {
-		return nil, err
-	}
-	zone, err := metadata.Zone()
-	if err != nil {
-		return nil, err
-	}
-	iname, err := metadata.InstanceName()
-	if err != nil {
-		return nil, err
-	}
-	igName, err := instanceGroupName()
-	if err != nil {
-		return nil, err
-	} else if igName == "" {
-		igName = projID
-	}
-
-	return (*monitoredResource)(&mrpb.MonitoredResource{
-		Type: "generic_task", // See: https://cloud.google.com/monitoring/api/resources#tag_generic_task
-		Labels: map[string]string{
-			"project_id": projID,
-			"location":   zone,
-			"namespace":  igName,
-			"job":        jobName,
-			"task_id":    iname,
-		},
-	}), nil
-}
-
-// instanceGroupName fetches the instanceGroupName from the instance metadata.
-//
-// The instance group manager applies a custom "created-by" attribute to the instance, which is not part of the
-// metadata package API, and must be queried separately.
-//
-// An empty string will be returned if a metadata.NotDefinedError is returned when fetching metadata.
-// An error will be returned if other errors occur when fetching metadata.
-func instanceGroupName() (string, error) {
-	ig, err := metadata.InstanceAttributeValue("created-by")
-	if nde := metadata.NotDefinedError(""); err != nil && !errors.As(err, &nde) {
-		return "", err
-	}
-	if ig == "" {
-		return "", nil
-	}
-	// "created-by" format: "projects/{{InstanceID}}/zones/{{Zone}}/instanceGroupManagers/{{Instance Group Name}}
-	ig = path.Base(ig)
-	return ig, err
+// views should contain all measurements. All *view.View added to this
+// slice will be registered and exported to the metric service.
+var views = []*view.View{
+	containerCount,
+	unwantedContainerCount,
+	maxContainerCount,
+	containerCreateCount,
+	containerCreationLatency,
+	ServerRequestCountView,
+	ServerRequestBytesView,
+	ServerResponseBytesView,
+	ServerLatencyView,
+	ServerRequestCountByMethod,
+	ServerResponseCountByStatusCode,
 }

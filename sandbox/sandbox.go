@@ -31,11 +31,13 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"
 	"golang.org/x/playground/internal"
+	"golang.org/x/playground/internal/metrics"
 	"golang.org/x/playground/sandbox/sandboxtypes"
 )
 
@@ -123,8 +125,12 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	if ms, err := newMetricService(); err != nil {
-		log.Printf("Failed to initialize metrics: newMetricService() = _, %v, wanted no error", err)
+	gr, err := metrics.GCEResource("go-playground-sandbox")
+	if err != nil && metadata.OnGCE() {
+		log.Printf("metrics.GceService(%q) = _, %v, wanted no error.", "go-playground-sandbox", err)
+	}
+	if ms, err := metrics.NewService(gr, views); err != nil {
+		log.Printf("Failed to initialize metrics: metrics.NewService() = _, %v, wanted no error", err)
 	} else {
 		mux.Handle("/statusz", ochttp.WithRouteTag(ms, "/statusz"))
 		defer ms.Stop()
