@@ -13,6 +13,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/datastore"
+	"golang.org/x/playground/internal/metrics"
 )
 
 var log = newStdLogger()
@@ -44,7 +45,7 @@ func main() {
 		}
 		s.log = log
 		return nil
-	})
+	}, enableMetrics)
 	if err != nil {
 		log.Fatalf("Error creating server: %v", err)
 	}
@@ -69,6 +70,21 @@ func main() {
 
 	log.Printf("Listening on :%v ...", port)
 	log.Fatalf("Error listening on :%v: %v", port, http.ListenAndServe(":"+port, s))
+}
+
+func enableMetrics(s *server) error {
+	gr, err := metrics.GAEResource(context.Background())
+	if err != nil {
+		s.log.Printf("metrics.GAEResource() = _, %q", err)
+	}
+	ms, err := metrics.NewService(gr, views)
+	if err != nil {
+		s.log.Printf("Failed to initialize metrics: metrics.NewService() = _, %q. (not on GCP?)", err)
+	}
+	if ms != nil && !metadata.OnGCE() {
+		s.mux.Handle("/metrics", ms)
+	}
+	return nil
 }
 
 func projectID() string {

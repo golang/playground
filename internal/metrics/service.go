@@ -145,7 +145,10 @@ func GCEResource(jobName string) (*MonitoredResource, error) {
 //
 // The resource will be in StackDrvier's gae_instance type.
 func GAEResource(ctx context.Context) (*MonitoredResource, error) {
-	if !appengine.IsAppEngine() {
+	// appengine.IsAppEngine is confusingly false as we're using a custom
+	// container and building without the appenginevm build constraint.
+	// Check metadata.OnGCE instead.
+	if !metadata.OnGCE() {
 		return nil, fmt.Errorf("not running on appengine")
 	}
 	projID, err := metadata.ProjectID()
