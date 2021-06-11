@@ -1,0 +1,25 @@
+build:
+  steps:
+  - args:
+    - clone
+    - --depth
+    - '1'
+    - https://go.googlesource.com/playground
+    name: gcr.io/cloud-builders/git
+  - args:
+    - builds
+    - submit
+    - --async
+    - --config
+    - deploy/deploy.json
+    - .
+    dir: playground
+    name: gcr.io/cloud-builders/gcloud
+createTime: '2019-06-18T17:59:14.019265678Z'
+description: Redeploy playground on new tagged Go release
+id: 5a2c9e25-a71a-4adf-a785-76c3eca2ac8a
+name: playground-redeploy-go-release
+triggerTemplate:
+  projectId: golang-org
+  repoName: go
+  tagName: ^go[0-9](\.[0-9]+)+$

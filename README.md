@@ -27,15 +27,12 @@ cat /path/to/code.go | go run client.go | curl -s --upload-file - localhost:8080
 Playground releases automatically triggered when new Go repository tags are pushed to GitHub, or when master is pushed
 on the playground repository.
 
-For details, see [deploy/go_trigger.json](deploy/go_trigger.json),
-[deploy/playground_trigger.json](deploy/playground_trigger.json),
+For details, see [deploy/go_trigger.yaml](deploy/go_trigger.yaml),
+[deploy/playground_trigger.yaml](deploy/playground_trigger.yaml),
 and [deploy/deploy.json](deploy/deploy.json).
 
-After making changes to trigger configuration, update configuration by running the following Make target:
-
-```bash
-make update-cloudbuild-trigger
-```
+Changes to the trigger configuration can be made to the YAML files, or in the GCP UI, which should be kept in sync
+using the `push-cloudbuild-trigger` and `pull-cloudbuild-trigger` make targets.
 
 ### Deploy via Cloud Build
 

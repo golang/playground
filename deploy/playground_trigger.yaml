@@ -1,0 +1,9 @@
+createTime: '2019-07-09T19:50:40.493493139Z'
+description: Redeploy playground on x/playground commit
+filename: deploy/deploy.json
+id: cb46eb75-8665-4365-8e93-b8f7bfbd4807
+name: playground-redeploy-playground
+triggerTemplate:
+  branchName: ^master$
+  projectId: golang-org
+  repoName: playground
