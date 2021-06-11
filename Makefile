@@ -1,11 +1,3 @@
-CLOUDBUILD_PLAYGROUND_TRIGGER_JSON := deploy/playground_trigger.json
-CLOUDBUILD_PLAYGROUND_TRIGGER_ID := $(shell jq -r .id ${CLOUDBUILD_PLAYGROUND_TRIGGER_JSON})
-CLOUDBUILD_GO_TRIGGER_JSON := deploy/go_trigger.json
-CLOUDBUILD_GO2GOPLAY_TRIGGER_JSON := deploy/go2goplay_trigger.json
-CLOUDBUILD_GO2GOPLAY_TRIGGER_ID := $(shell jq -r .id ${CLOUDBUILD_GO2GOPLAY_TRIGGER_JSON})
-CLOUDBUILD_GO_TRIGGER_ID := $(shell jq -r .id ${CLOUDBUILD_GO_TRIGGER_JSON})
-GCLOUD_ACCESS_TOKEN := $(shell gcloud auth print-access-token)
-
 .PHONY: docker test update-cloudbuild-trigger
 
 docker:
@@ -29,9 +21,8 @@ test_gvisor: docker
 # directory)
 test: test_go
 
-update-cloudbuild-trigger:
-	# The gcloud CLI doesn't yet support updating a trigger.
-	curl -H "Authorization: Bearer $(GCLOUD_ACCESS_TOKEN)" -H "Content-Type: application/json" \
-		-d @$(CLOUDBUILD_GO2GOPLAY_TRIGGER_JSON) \
-		-X PATCH https://cloudbuild.googleapis.com/v1/projects/golang-org/triggers/$(CLOUDBUILD_GO2GOPLAY_TRIGGER_ID)
+push-cloudbuild-triggers:
+	gcloud beta builds triggers import --project golang-org --source deploy/go2goplay_trigger.yaml
 
+pull-cloudbuild-triggers:
+	gcloud beta builds triggers export --project golang-org go2go-redeploy-playground --destination deploy/go2goplay_trigger.yaml

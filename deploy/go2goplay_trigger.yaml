@@ -1,0 +1,27 @@
+build:
+  steps:
+  - args:
+    - clone
+    - -b
+    - dev.go2go
+    - --depth
+    - '1'
+    - https://go.googlesource.com/playground
+    name: gcr.io/cloud-builders/git
+  - args:
+    - builds
+    - submit
+    - --async
+    - --config
+    - deploy/deploy.json
+    - .
+    dir: playground
+    name: gcr.io/cloud-builders/gcloud
+createTime: '2020-09-24T18:59:38.698943467Z'
+description: Redeploy playground on dev.go2go commit
+id: 0d417735-105e-4887-a8f5-9d37aedbecb9
+name: go2go-redeploy-playground
+triggerTemplate:
+  branchName: ^dev\.go2go$
+  projectId: golang-org
+  repoName: go
