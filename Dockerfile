@@ -46,13 +46,6 @@ RUN git clone https://go.googlesource.com/go go && cd go && git reset --hard $GO
 WORKDIR /usr/local/go/src
 RUN ./make.bash
 
-# Make a copy in /usr/local/go-faketime where the standard library
-# is installed with -tags=faketime.
-RUN cp -R /usr/local/go /usr/local/go-faketime
-ENV GOROOT /usr/local/go-faketime
-WORKDIR /usr/local/go-faketime/src
-RUN ../bin/go install --tags=faketime std
-
 ############################################################################
 # Build playground web server.
 FROM debian:buster as build-playground
@@ -79,12 +72,23 @@ FROM debian:buster
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
-COPY --from=build-go /usr/local/go-faketime /usr/local/go-faketime
+# Make a copy in /usr/local/go-faketime where the standard library
+# is installed with -tags=faketime.
+COPY --from=build-go /usr/local/go /usr/local/go-faketime
 
+ENV CGO_ENABLED 0
+ENV GOPATH /go
+ENV GOROOT /usr/local/go-faketime
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
-ENV GOPATH /go
 ENV PATH="/go/bin:/usr/local/go-faketime/bin:${PATH}"
+
+WORKDIR /usr/local/go-faketime
+RUN ./bin/go install --tags=faketime std
+# Ignore the exit code. go vet std does not pass vet with the faketime
+# patches, but it successfully caches results for when we vet user
+# snippets.
+RUN ./bin/go vet --tags=faketime std || true
 
 RUN mkdir /app
 COPY --from=build-playground /go/bin/playground /app
