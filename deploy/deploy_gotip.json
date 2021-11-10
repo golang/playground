@@ -1,0 +1,30 @@
+{
+  "steps": [
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "entrypoint": "bash",
+      "args": [
+        "-c",
+        "docker build --build-arg GO_VERSION=master -t gcr.io/$PROJECT_ID/playground-gotip ."
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "args": [
+        "push",
+        "gcr.io/$PROJECT_ID/playground-gotip"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/gcloud",
+      "args": [
+        "app",
+        "deploy",
+        "app.gotip.yaml",
+        "--project=$PROJECT_ID",
+        "--image-url=gcr.io/$PROJECT_ID/playground-gotip:latest"
+      ]
+    }
+  ],
+  "timeout": "1800s"
+}
