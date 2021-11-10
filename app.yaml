@@ -1,3 +1,21 @@
 service: play
-includes:
-- playground.yaml
+runtime: custom
+env: flex
+
+network:
+  name: projects/golang-org/global/networks/golang
+
+resources:
+  cpu: 2
+  memory_gb: 2
+
+automatic_scaling:
+  min_num_instances: 5
+
+readiness_check:
+  path: "/_ah/health"
+  check_interval_sec: 10
+
+env_variables:
+  MEMCACHED_ADDR: 'memcached-play-golang:11211'
+
