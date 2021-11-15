@@ -50,7 +50,7 @@ RUN ./make.bash
 # Build playground web server.
 FROM debian:buster as build-playground
 
-RUN apt-get update && apt-get install -y ca-certificates --no-install-recommends
+RUN apt-get update && apt-get install -y ca-certificates git --no-install-recommends
 # Build playground from Go built at GO_VERSION.
 COPY --from=build-go /usr/local/go /usr/local/go
 ENV GOROOT /usr/local/go

@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 	<head>
-		<title>The Go Playground</title>
+		<title>The {{if .Gotip}}Gotip{{else}}Go{{end}} Playground</title>
 		<link rel="stylesheet" href="/static/style.css">
 		{{if .Analytics}}
 		<script async src="https://www.googletagmanager.com/gtag/js?id=UA-11222381-7"></script>
@@ -103,7 +103,7 @@
 	<body itemscope itemtype="http://schema.org/CreativeWork">
 		<input type="button" value="Run" id="embedRun">
 		<div id="banner">
-			<div id="head" itemprop="name">The Go Playground</div>
+			<div id="head" itemprop="name">The {{if .Gotip}}<a href="https://golang.org/dl/gotip">Gotip</a>{{else}}Go{{end}} Playground</div>
 			<input type="button" value="Run" id="run">
 			<input type="button" value="Format" id="fmt">
 			<div id="importsBox">
@@ -185,7 +185,11 @@ https://go.googlesource.com/playground</a>.
 </p>
 
 <p>
+{{if .Gotip}}
+This playground uses a development version of Go.<br>
+{{else}}
 The playground uses the latest stable release of Go.<br>
+{{end}}
 The current version is <a href="/p/Ztyu2FJaajl">{{.GoVersion}}</a>.
 </p>
 

@@ -44,6 +44,9 @@ func main() {
 			log.Printf("App (project ID: %q) is NOT caching results", pid)
 		}
 		s.log = log
+		if gotip := os.Getenv("GOTIP"); gotip == "true" {
+			s.gotip = true
+		}
 		return nil
 	}, enableMetrics)
 	if err != nil {

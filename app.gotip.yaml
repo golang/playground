@@ -18,4 +18,5 @@ readiness_check:
 
 env_variables:
   MEMCACHED_ADDR: 'memcached-play-golang:11211'
+  GOTIP: true
 

@@ -20,6 +20,9 @@ docker run --name=play --rm -p 8080:8080 golang/playground &
 cat /path/to/code.go | go run client.go | curl -s --upload-file - localhost:8080/compile
 ```
 
+To run the "gotip" version of the playground, set `GOTIP=true`
+in your environment (via `-e GOTIP=true` if using `docker run`).
+
 ## Deployment
 
 ### Deployment Triggers
@@ -39,7 +42,14 @@ using the `push-cloudbuild-trigger` and `pull-cloudbuild-trigger` make targets.
 The Cloud Build configuration will always build and deploy with the latest supported release of Go.
 
 ```bash
-gcloud builds submit --config deploy/deploy.json .
+gcloud --project=golang-org builds submit --config deploy/deploy.json .
+```
+
+To deploy the "Go tip" version of the playground, which uses the latest
+development build, use `deploy_gotip.json` instead:
+
+```bash
+gcloud --project=golang-org builds submit --config deploy/deploy_gotip.json .
 ```
 
 ### Deploy via gcloud app deploy
