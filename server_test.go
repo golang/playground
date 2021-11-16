@@ -15,6 +15,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/google/go-cmp/cmp"
@@ -38,6 +39,11 @@ func testingOptions(t *testing.T) func(s *server) error {
 	return func(s *server) error {
 		s.db = &inMemStore{}
 		s.log = testLogger{t}
+		var err error
+		s.examples, err = newExamplesHandler(false, time.Now())
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 }
@@ -101,30 +107,38 @@ func TestEdit(t *testing.T) {
 	}
 }
 
-func TestShare(t *testing.T) {
+func TestServer(t *testing.T) {
 	s, err := newServer(testingOptions(t))
 	if err != nil {
 		t.Fatalf("newServer(testingOptions(t)): %v", err)
 	}
 
-	const url = "https://play.golang.org/share"
+	const shareURL = "https://play.golang.org/share"
 	testCases := []struct {
 		desc       string
 		method     string
+		url        string
 		statusCode int
 		reqBody    []byte
 		respBody   []byte
 	}{
-		{"OPTIONS no-op", http.MethodOptions, http.StatusOK, nil, nil},
-		{"Non-POST request", http.MethodGet, http.StatusMethodNotAllowed, nil, nil},
-		{"Standard flow", http.MethodPost, http.StatusOK, []byte("Snippy McSnipface"), []byte("N_M_YelfGeR")},
-		{"Snippet too large", http.MethodPost, http.StatusRequestEntityTooLarge, make([]byte, maxSnippetSize+1), nil},
+		// Share tests.
+		{"OPTIONS no-op", http.MethodOptions, shareURL, http.StatusOK, nil, nil},
+		{"Non-POST request", http.MethodGet, shareURL, http.StatusMethodNotAllowed, nil, nil},
+		{"Standard flow", http.MethodPost, shareURL, http.StatusOK, []byte("Snippy McSnipface"), []byte("N_M_YelfGeR")},
+		{"Snippet too large", http.MethodPost, shareURL, http.StatusRequestEntityTooLarge, make([]byte, maxSnippetSize+1), nil},
+
+		// Examples tests.
+		{"Hello example", http.MethodGet, "https://play.golang.org/doc/play/hello.txt", http.StatusOK, nil, []byte("Hello")},
+		{"HTTP example", http.MethodGet, "https://play.golang.org/doc/play/http.txt", http.StatusOK, nil, []byte("net/http")},
+		// Gotip examples should not be available on the non-tip playground.
+		{"Gotip example", http.MethodGet, "https://play.golang.org/doc/play/min.gotip.txt", http.StatusNotFound, nil, nil},
 	}
 
 	for _, tc := range testCases {
-		req := httptest.NewRequest(tc.method, url, bytes.NewReader(tc.reqBody))
+		req := httptest.NewRequest(tc.method, tc.url, bytes.NewReader(tc.reqBody))
 		w := httptest.NewRecorder()
-		s.handleShare(w, req)
+		s.mux.ServeHTTP(w, req)
 		resp := w.Result()
 		corsHeader := "Access-Control-Allow-Origin"
 		if got, want := resp.Header.Get(corsHeader), "*"; got != want {
@@ -139,8 +153,8 @@ func TestShare(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s: ioutil.ReadAll(resp.Body): %v", tc.desc, err)
 			}
-			if !bytes.Equal(b, tc.respBody) {
-				t.Errorf("%s: got unexpected body %q; want %q", tc.desc, b, tc.respBody)
+			if !bytes.Contains(b, tc.respBody) {
+				t.Errorf("%s: got unexpected body %q; want contains %q", tc.desc, b, tc.respBody)
 			}
 		}
 	}
@@ -172,6 +186,11 @@ func TestCommandHandler(t *testing.T) {
 		// instead of just printing or failing the test?
 		s.log = newStdLogger()
 		s.cache = new(inMemCache)
+		var err error
+		s.examples, err = newExamplesHandler(false, time.Now())
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {

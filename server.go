@@ -7,7 +7,6 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -15,11 +14,12 @@ import (
 )
 
 type server struct {
-	mux   *http.ServeMux
-	db    store
-	log   logger
-	cache responseCache
-	gotip bool // if set, server is using gotip
+	mux      *http.ServeMux
+	db       store
+	log      logger
+	cache    responseCache
+	gotip    bool // if set, server is using gotip
+	examples *examplesHandler
 
 	// When the executable was last modified. Used for caching headers of compiled assets.
 	modtime time.Time
@@ -38,11 +38,8 @@ func newServer(options ...func(s *server) error) (*server, error) {
 	if s.log == nil {
 		return nil, fmt.Errorf("must provide an option func that specifies a logger")
 	}
-	execpath, _ := os.Executable()
-	if execpath != "" {
-		if fi, _ := os.Stat(execpath); fi != nil {
-			s.modtime = fi.ModTime()
-		}
+	if s.examples == nil {
+		return nil, fmt.Errorf("must provide an option func that sets the examples handler")
 	}
 	s.init()
 	return s, nil
@@ -60,9 +57,7 @@ func (s *server) init() {
 
 	staticHandler := http.StripPrefix("/static/", http.FileServer(http.Dir("./static")))
 	s.mux.Handle("/static/", staticHandler)
-
-	examplesHandler := http.StripPrefix("/doc/play/", http.FileServer(http.Dir("./examples")))
-	s.mux.Handle("/doc/play/", examplesHandler)
+	s.mux.Handle("/doc/play/", http.StripPrefix("/doc/play/", s.examples))
 }
 
 func (s *server) handlePlaygroundJS(w http.ResponseWriter, r *http.Request) {

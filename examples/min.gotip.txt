@@ -1,0 +1,19 @@
+// Title: Generic min
+package main
+
+import (
+	"fmt"
+	"constraints"
+)
+
+func min[P constraints.Ordered](x, y P) P {
+	if x < y {
+		return x
+	} else {
+		return y
+	}
+}
+
+func main() {
+	fmt.Println(min(42, 24))
+}

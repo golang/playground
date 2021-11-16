@@ -24,6 +24,7 @@ type editData struct {
 	Analytics bool
 	GoVersion string
 	Gotip     bool
+	Examples  []example
 }
 
 func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
@@ -45,11 +46,7 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content := hello
-	if s.gotip {
-		content = helloGotip
-	}
-	snip := &snippet{Body: []byte(content)}
+	snip := &snippet{Body: []byte(s.examples.hello())}
 	if strings.HasPrefix(r.URL.Path, "/p/") {
 		if !allowShare(r) {
 			w.WriteHeader(http.StatusUnavailableForLegalReasons)
@@ -88,40 +85,10 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 		Analytics: r.Host == hostname,
 		GoVersion: runtime.Version(),
 		Gotip:     s.gotip,
+		Examples:  s.examples.examples,
 	}
 	if err := editTemplate.Execute(w, data); err != nil {
 		s.log.Errorf("editTemplate.Execute(w, %+v): %v", data, err)
 		return
 	}
 }
-
-const hello = `package main
-
-import (
-	"fmt"
-)
-
-func main() {
-	fmt.Println("Hello, playground")
-}
-`
-
-var helloGotip = fmt.Sprintf(`package main
-
-import (
-	"fmt"
-)
-
-// This playground uses a development build of Go:
-// %s
-
-func Print[T any](s ...T) {
-	for _, v := range s {
-		fmt.Print(v)
-	}
-}
-
-func main() {
-	Print("Hello, ", "playground\n")
-}
-`, runtime.Version())

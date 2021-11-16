@@ -47,6 +47,17 @@ func main() {
 		if gotip := os.Getenv("GOTIP"); gotip == "true" {
 			s.gotip = true
 		}
+		execpath, _ := os.Executable()
+		if execpath != "" {
+			if fi, _ := os.Stat(execpath); fi != nil {
+				s.modtime = fi.ModTime()
+			}
+		}
+		eh, err := newExamplesHandler(s.gotip, s.modtime)
+		if err != nil {
+			return err
+		}
+		s.examples = eh
 		return nil
 	}, enableMetrics)
 	if err != nil {
