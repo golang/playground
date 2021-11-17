@@ -1,0 +1,10 @@
+runtime: go116
+service: go2goplay
+main: ./cmd/redirect
+
+handlers:
+- url: /.*
+  script: auto
+
+env_variables:
+  PLAY_REDIRECT: "https://gotipplay.golang.org"
