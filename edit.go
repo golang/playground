@@ -78,11 +78,17 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	if r.Host == hostname {
+		// The main playground is now on go.dev/play.
+		http.Redirect(w, r, "https://go.dev/play"+r.URL.Path, http.StatusFound)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := &editData{
 		Snippet:   snip,
 		Share:     allowShare(r),
-		Analytics: r.Host == hostname,
 		GoVersion: runtime.Version(),
 		Gotip:     s.gotip,
 		Examples:  s.examples.examples,

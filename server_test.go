@@ -72,7 +72,7 @@ func TestEdit(t *testing.T) {
 		{"foo.play.golang.org to play.golang.org", http.MethodGet, "https://foo.play.golang.org", http.StatusFound, map[string]string{"Location": "https://play.golang.org"}, nil},
 		{"Non-existent page", http.MethodGet, "https://play.golang.org/foo", http.StatusNotFound, nil, nil},
 		{"Unknown snippet", http.MethodGet, "https://play.golang.org/p/foo", http.StatusNotFound, nil, nil},
-		{"Existing snippet", http.MethodGet, "https://play.golang.org/p/" + id, http.StatusOK, nil, nil},
+		{"Existing snippet", http.MethodGet, "https://play.golang.org/p/" + id, http.StatusFound, nil, nil},
 		{"Plaintext snippet", http.MethodGet, "https://play.golang.org/p/" + id + ".go", http.StatusOK, nil, barBody},
 		{"Download snippet", http.MethodGet, "https://play.golang.org/p/" + id + ".go?download=true", http.StatusOK, map[string]string{"Content-Disposition": fmt.Sprintf(`attachment; filename="%s.go"`, id)}, barBody},
 	}
