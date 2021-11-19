@@ -14,6 +14,11 @@ import (
 )
 
 func TestHandleFmt(t *testing.T) {
+	s, err := newServer(testingOptions(t))
+	if err != nil {
+		t.Fatalf("newServer(testingOptions(t)): %v", err)
+	}
+
 	for _, tt := range []struct {
 		name    string
 		method  string
@@ -125,7 +130,7 @@ func TestHandleFmt(t *testing.T) {
 			}
 			req := httptest.NewRequest("POST", "/fmt", strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			handleFmt(rec, req)
+			s.handleFmt(rec, req)
 			resp := rec.Result()
 			if resp.StatusCode != 200 {
 				t.Fatalf("code = %v", resp.Status)

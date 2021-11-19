@@ -5,7 +5,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -47,7 +50,8 @@ func newServer(options ...func(s *server) error) (*server, error) {
 
 func (s *server) init() {
 	s.mux.HandleFunc("/", s.handleEdit)
-	s.mux.HandleFunc("/fmt", handleFmt)
+	s.mux.HandleFunc("/fmt", s.handleFmt)
+	s.mux.HandleFunc("/version", s.handleVersion)
 	s.mux.HandleFunc("/vet", s.commandHandler("vet", vetCheck))
 	s.mux.HandleFunc("/compile", s.commandHandler("prog", compileAndRun))
 	s.mux.HandleFunc("/share", s.handleShare)
@@ -89,4 +93,21 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; preload")
 	}
 	s.mux.ServeHTTP(w, r)
+}
+
+// writeJSONResponse JSON-encodes resp and writes to w with the given HTTP
+// status.
+func (s *server) writeJSONResponse(w http.ResponseWriter, resp interface{}, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(resp); err != nil {
+		s.log.Errorf("error encoding response: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(status)
+	if _, err := io.Copy(w, &buf); err != nil {
+		s.log.Errorf("io.Copy(w, &buf): %v", err)
+		return
+	}
 }

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -133,6 +134,8 @@ func TestServer(t *testing.T) {
 		{"HTTP example", http.MethodGet, "https://play.golang.org/doc/play/http.txt", http.StatusOK, nil, []byte("net/http")},
 		// Gotip examples should not be available on the non-tip playground.
 		{"Gotip example", http.MethodGet, "https://play.golang.org/doc/play/min.gotip.txt", http.StatusNotFound, nil, nil},
+
+		{"Versions json", http.MethodGet, "https://play.golang.org/version", http.StatusOK, nil, []byte(runtime.Version())},
 	}
 
 	for _, tc := range testCases {

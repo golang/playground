@@ -135,7 +135,7 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context
 				// if we've timed out because of an error in the code snippet, or instability
 				// on the playground itself. Either way, we should try to show the user the
 				// partial output of their program.
-				s.writeResponse(w, resp, http.StatusOK)
+				s.writeJSONResponse(w, resp, http.StatusOK)
 				return
 			}
 			for _, e := range internalErrors {
@@ -162,21 +162,7 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context
 			}
 		}
 
-		s.writeResponse(w, resp, http.StatusOK)
-	}
-}
-
-func (s *server) writeResponse(w http.ResponseWriter, resp *response, status int) {
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(resp); err != nil {
-		s.log.Errorf("error encoding response: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(status)
-	if _, err := io.Copy(w, &buf); err != nil {
-		s.log.Errorf("io.Copy(w, &buf): %v", err)
-		return
+		s.writeJSONResponse(w, resp, http.StatusOK)
 	}
 }
 

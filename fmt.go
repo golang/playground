@@ -20,7 +20,7 @@ type fmtResponse struct {
 	Error string
 }
 
-func handleFmt(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleFmt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if r.Method == "OPTIONS" {
 		// This is likely a pre-flight CORS request.
@@ -69,7 +69,7 @@ func handleFmt(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	json.NewEncoder(w).Encode(fmtResponse{Body: string(fs.Format())})
+	s.writeJSONResponse(w, fmtResponse{Body: string(fs.Format())}, http.StatusOK)
 }
 
 func formatGoMod(file string, data []byte) ([]byte, error) {
