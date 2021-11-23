@@ -1,0 +1,13 @@
+createTime: '2021-11-23T16:11:02.136351538Z'
+description: Deploy gotip playground daily
+gitFileSource:
+  path: deploy/deploy_gotip.json
+  repoType: CLOUD_SOURCE_REPOSITORIES
+  revision: refs/heads/master
+  uri: https://source.developers.google.com/p/golang-org/r/playground
+id: b30b6980-4b88-4c10-91d4-5705c793fa1b
+name: playground-deploy-gotip-playground
+sourceToBuild:
+  ref: refs/heads/master
+  repoType: CLOUD_SOURCE_REPOSITORIES
+  uri: https://source.developers.google.com/p/golang-org/r/playground
