@@ -1,4 +1,4 @@
-service: golast-play
+service: goprevplay
 runtime: custom
 env: flex
 
