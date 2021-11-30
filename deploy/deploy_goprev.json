@@ -23,7 +23,7 @@
       "name": "gcr.io/cloud-builders/docker",
       "args": [
         "push",
-        "gcr.io/$PROJECT_ID/playground"
+        "gcr.io/$PROJECT_ID/playground-goprev"
       ]
     },
     {
