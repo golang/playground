@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // The gcpdialtool command is an interactive validation tool for the
-// gcpdial packge.
+// gcpdial package.
 package main
 
 import (
