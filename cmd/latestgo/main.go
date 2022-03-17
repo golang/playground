@@ -7,22 +7,28 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
+	"time"
 
 	"golang.org/x/build/maintner/maintnerd/apipb"
-	grpc "grpc.go4.org"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var prev = flag.Bool("prev", false, "whether to query the previous Go release, rather than the last (e.g. 1.17 versus 1.18)")
 
-const maintnerURI = "https://maintner.golang.org"
+const maintnerURI = "maintner.golang.org:443"
 
 func main() {
 	flag.Parse()
 
-	conn, err := grpc.NewClient(nil, maintnerURI)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, maintnerURI, grpc.WithBlock(),
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{NextProtos: []string{"h2"}})))
 	if err != nil {
 		log.Fatalf("error creating grpc client for %q: %v", maintnerURI, err)
 	}

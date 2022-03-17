@@ -444,7 +444,7 @@ func main() { for i := range iter.N(5) { fmt.Println(i) } }
 	{
 		name:          "compile_with_vet",
 		withVet:       true,
-		wantVetErrors: "./prog.go:5:2: Printf format %v reads arg #1, but call has 0 args\n",
+		wantVetErrors: "./prog.go:5:2: fmt.Printf format %v reads arg #1, but call has 0 args\n",
 		prog: `
 package main
 import "fmt"
@@ -469,7 +469,7 @@ func main() {
 	{
 		name:          "compile_modules_with_vet",
 		withVet:       true,
-		wantVetErrors: "./prog.go:6:2: Printf format %v reads arg #1, but call has 0 args\n",
+		wantVetErrors: "go: finding module for package github.com/bradfitz/iter\ngo: found github.com/bradfitz/iter in github.com/bradfitz/iter v0.0.0-20191230175014-e8f45d346db8\n# play\n./prog.go:6:2: fmt.Printf format %v reads arg #1, but call has 0 args\n",
 		prog: `
 package main
 import ("fmt"; "github.com/bradfitz/iter")
