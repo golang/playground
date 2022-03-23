@@ -34,12 +34,16 @@ export GOTIP_MESSAGE
 
 push-cloudbuild-triggers:
 	gcloud beta builds triggers import --project golang-org --source deploy/go_trigger.yaml
+	gcloud beta builds triggers import --project golang-org --source deploy/go_goprev_trigger.yaml
 	gcloud beta builds triggers import --project golang-org --source deploy/playground_trigger.yaml
+	gcloud beta builds triggers import --project golang-org --source deploy/playground_goprev_trigger.yaml
 	gcloud alpha builds triggers import --project golang-org --source deploy/gotip_scheduled_trigger.yaml
 	@echo "$$GOTIP_MESSAGE"
 
 pull-cloudbuild-triggers:
 	gcloud beta builds triggers export --project golang-org playground-redeploy-go-release --destination deploy/go_trigger.yaml
+	gcloud beta builds triggers export --project golang-org playground-redeploy-goprev-go-release --destination deploy/go_goprev_trigger.yaml
 	gcloud beta builds triggers export --project golang-org playground-redeploy-playground --destination deploy/playground_trigger.yaml
+	gcloud beta builds triggers export --project golang-org playground-redeploy-goprev-playground --destination deploy/playground_goprev_trigger.yaml
 	gcloud alpha builds triggers export --project golang-org playground-deploy-gotip-playground --destination deploy/gotip_scheduled_trigger.yaml
 	gcloud scheduler --project=golang-org jobs describe --format=yaml playground-deploy-gotip-playground-schedule > deploy/gotip_schedule.yaml

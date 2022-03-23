@@ -1,0 +1,9 @@
+createTime: '2022-03-23T14:30:37.556961257Z'
+description: Redeploy the goprev playground on x/playground commit
+filename: deploy/deploy_goprev.json
+id: 4964e99e-4472-4279-8b92-244cbc5e2cd6
+name: playground-redeploy-goprev-playground
+triggerTemplate:
+  branchName: ^master$
+  projectId: golang-org
+  repoName: playground

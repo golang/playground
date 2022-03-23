@@ -1,0 +1,25 @@
+build:
+  steps:
+  - args:
+    - clone
+    - --depth
+    - '1'
+    - https://go.googlesource.com/playground
+    name: gcr.io/cloud-builders/git
+  - args:
+    - builds
+    - submit
+    - --async
+    - --config
+    - deploy/deploy_goprev.json
+    - .
+    dir: playground
+    name: gcr.io/cloud-builders/gcloud
+createTime: '2022-03-23T14:26:03.683560061Z'
+description: Redeploy the goprev playground on new tagged Go release
+id: 652aa58f-6376-4a89-a881-e5b0ed2ddbba
+name: playground-redeploy-goprev-go-release
+triggerTemplate:
+  projectId: golang-org
+  repoName: go
+  tagName: ^go[0-9](\.[0-9]+)+$

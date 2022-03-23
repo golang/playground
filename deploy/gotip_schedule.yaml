@@ -10,10 +10,11 @@ httpTarget:
     scope: https://www.googleapis.com/auth/cloud-platform
     serviceAccountEmail: cloud-build-trigger-scheduler@golang-org.iam.gserviceaccount.com
   uri: https://cloudbuild.googleapis.com/v1/projects/golang-org/triggers/b30b6980-4b88-4c10-91d4-5705c793fa1b:run
-lastAttemptTime: '2021-11-23T16:22:00.122806Z'
+lastAttemptTime: '2022-03-23T14:00:00.657383Z'
 name: projects/golang-org/locations/us-central1/jobs/playground-deploy-gotip-playground-schedule
 schedule: 0 10 * * *
-scheduleTime: '2021-11-24T15:00:00Z'
+scheduleTime: '2022-03-24T14:00:00.140242Z'
 state: ENABLED
+status: {}
 timeZone: America/New_York
 userUpdateTime: '2021-11-23T16:27:07Z'

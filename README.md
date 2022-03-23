@@ -35,7 +35,7 @@ For details, see [deploy/go_trigger.yaml](deploy/go_trigger.yaml),
 and [deploy/deploy.json](deploy/deploy.json).
 
 Changes to the trigger configuration can be made to the YAML files, or in the GCP UI, which should be kept in sync
-using the `push-cloudbuild-trigger` and `pull-cloudbuild-trigger` make targets.
+using the `push-cloudbuild-triggers` and `pull-cloudbuild-triggers` make targets.
 
 ### Deploy via Cloud Build
 
