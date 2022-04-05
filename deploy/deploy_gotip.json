@@ -24,6 +24,14 @@
         "--project=$PROJECT_ID",
         "--image-url=gcr.io/$PROJECT_ID/playground-gotip:latest"
       ]
+    },
+    {
+      "name": "golang",
+      "entrypoint": "sh",
+      "args": [
+        "-c",
+        "go install golang.org/x/website/cmd/versionprune@latest && versionprune --dry_run=false --project=$PROJECT_ID --service=gotipplay"
+      ]
     }
   ],
   "timeout": "3600s",
