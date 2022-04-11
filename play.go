@@ -30,10 +30,10 @@ var epoch = time.Unix(1257894000, 0)
 // occurring at the same time as the preceding event.
 //
 // A playback header has this structure:
-// 	4 bytes: "\x00\x00PB", a magic header
-// 	8 bytes: big-endian int64, unix time in nanoseconds
-// 	4 bytes: big-endian int32, length of the next write
 //
+//	4 bytes: "\x00\x00PB", a magic header
+//	8 bytes: big-endian int64, unix time in nanoseconds
+//	4 bytes: big-endian int32, length of the next write
 type Recorder struct {
 	stdout, stderr recorderWriter
 }

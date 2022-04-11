@@ -55,8 +55,8 @@ var (
 )
 
 // Customizations of ochttp views. Views are updated as follows:
-//  * The views are prefixed with go-playground-sandbox.
-//  * ochttp.KeyServerRoute is added as a tag to label metrics per-route.
+//   - The views are prefixed with go-playground-sandbox.
+//   - ochttp.KeyServerRoute is added as a tag to label metrics per-route.
 var (
 	ServerRequestCountView = &view.View{
 		Name:        "go-playground-sandbox/http/server/request_count",
