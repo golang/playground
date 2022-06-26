@@ -143,8 +143,10 @@ func main() {
 		log.Printf("Running in dev mode; container published to host at: http://localhost:8080/")
 		log.Printf("Run a binary with: curl -v --data-binary @/home/bradfitz/hello http://localhost:8080/run\n")
 	} else {
-		if out, err := exec.Command("docker", "pull", *container).CombinedOutput(); err != nil {
-			log.Fatalf("error pulling %s: %v, %s", *container, err, out)
+		if _, err := exec.Command("docker", "images", "-q", *container).CombinedOutput(); err != nil {
+			if out, err := exec.Command("docker", "pull", *container).CombinedOutput(); err != nil {
+				log.Fatalf("error pulling %s: %v, %s", *container, err, out)
+			}
 		}
 		log.Printf("Listening on %s", *listenAddr)
 	}
