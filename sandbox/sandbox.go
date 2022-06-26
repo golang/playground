@@ -445,18 +445,34 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 
 	name := "play_run_" + randHex(8)
 	setContainerWanted(name, true)
-	cmd := exec.Command("docker", "run",
-		"--name="+name,
-		"--rm",
-		"--tmpfs=/tmpfs:exec",
-		"-i", // read stdin
+	var cmd *exec.Cmd
+	if _, err := os.Stat("/var/lib/docker/runsc"); err == nil {
+		cmd = exec.Command("docker", "run",
+			"--name="+name,
+			"--rm",
+			"--tmpfs=/tmpfs:exec",
+			"-i", // read stdin
 
-		"--runtime=runsc",
-		"--network=none",
-		"--memory="+fmt.Sprint(memoryLimitBytes),
+			"--runtime=runsc",
+			"--network=none",
+			"--memory="+fmt.Sprint(memoryLimitBytes),
 
-		*container,
-		"--mode=contained")
+			*container,
+			"--mode=contained")
+	} else {
+		cmd = exec.Command("docker", "run",
+			"--name="+name,
+			"--rm",
+			"--tmpfs=/tmpfs:exec",
+			"-i", // read stdin
+
+			"--network=none",
+			"--memory="+fmt.Sprint(memoryLimitBytes),
+
+			*container,
+			"--mode=contained")
+	}
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
