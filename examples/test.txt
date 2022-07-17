@@ -9,7 +9,7 @@ import (
 // -1 if x is not present. The loop condition has a fault that
 // causes somes tests to fail. Change it to i >= 0 to see them pass.
 func LastIndex(list []int, x int) int {
-	for i := len(list) - 1; i > 0; i-- {
+	for i := len(list) - 1; i >= 0; i-- {
 		if list[i] == x {
 			return i
 		}
