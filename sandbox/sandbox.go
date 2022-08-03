@@ -42,11 +42,12 @@ import (
 )
 
 var (
-	listenAddr = flag.String("listen", ":80", "HTTP server listen address. Only applicable when --mode=server")
-	mode       = flag.String("mode", "server", "Whether to run in \"server\" mode or \"contained\" mode. The contained mode is used internally by the server mode.")
-	dev        = flag.Bool("dev", false, "run in dev mode (show help messages)")
-	numWorkers = flag.Int("workers", runtime.NumCPU(), "number of parallel gvisor containers to pre-spin up & let run concurrently")
-	container  = flag.String("untrusted-container", "gcr.io/golang-org/playground-sandbox-gvisor:latest", "container image name that hosts the untrusted binary under gvisor")
+	listenAddr       = flag.String("listen", ":80", "HTTP server listen address. Only applicable when --mode=server")
+	mode             = flag.String("mode", "server", "Whether to run in \"server\" mode or \"contained\" mode. The contained mode is used internally by the server mode.")
+	dev              = flag.Bool("dev", false, "run in dev mode (show help messages)")
+	numWorkers       = flag.Int("workers", runtime.NumCPU(), "number of parallel gvisor containers to pre-spin up & let run concurrently")
+	container        = flag.String("untrusted-container", "gcr.io/golang-org/playground-sandbox-gvisor:latest", "container image name that hosts the untrusted binary under gvisor")
+	allowImageUpdate = flag.Bool("allow-image-update", true, "Allow docker image update. If not allowed, only pull images if not present.")
 )
 
 const (
@@ -143,8 +144,16 @@ func main() {
 		log.Printf("Running in dev mode; container published to host at: http://localhost:8080/")
 		log.Printf("Run a binary with: curl -v --data-binary @/home/bradfitz/hello http://localhost:8080/run\n")
 	} else {
-		if out, err := exec.Command("docker", "pull", *container).CombinedOutput(); err != nil {
-			log.Fatalf("error pulling %s: %v, %s", *container, err, out)
+		if *allowImageUpdate {
+			if out, err := exec.Command("docker", "pull", *container).CombinedOutput(); err != nil {
+				log.Fatalf("error pulling %s: %v, %s", *container, err, out)
+			}
+		} else {
+			if _, err := exec.Command("docker", "images", "-q", *container).CombinedOutput(); err != nil {
+				if out, err := exec.Command("docker", "pull", *container).CombinedOutput(); err != nil {
+					log.Fatalf("error pulling %s: %v, %s", *container, err, out)
+				}
+			}
 		}
 		log.Printf("Listening on %s", *listenAddr)
 	}
