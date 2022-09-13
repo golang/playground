@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -91,7 +90,7 @@ func (p *prober) probe() {
 	res, err := http.DefaultClient.Do(req)
 	if res != nil {
 		defer res.Body.Close()
-		defer io.Copy(ioutil.Discard, res.Body)
+		defer io.Copy(io.Discard, res.Body)
 	}
 	healthy := err == nil && res.StatusCode == http.StatusOK
 	if healthy == p.healthy {

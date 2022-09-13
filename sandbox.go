@@ -19,7 +19,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -331,7 +330,7 @@ var failedTestPattern = "--- FAIL"
 // *response.Errors contains an explanation for a user.
 func compileAndRun(ctx context.Context, req *request) (*response, error) {
 	// TODO(andybons): Add semaphore to limit number of running programs at once.
-	tmpDir, err := ioutil.TempDir("", "sandbox")
+	tmpDir, err := os.MkdirTemp("", "sandbox")
 	if err != nil {
 		return nil, fmt.Errorf("error creating temp directory: %v", err)
 	}
@@ -457,7 +456,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 				return nil, err
 			}
 		}
-		if err := ioutil.WriteFile(in, src, 0644); err != nil {
+		if err := os.WriteFile(in, src, 0644); err != nil {
 			return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 		}
 	}
@@ -474,7 +473,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	// into GOPATH/pkg/mod.
 	cmd.Args = append(cmd.Args, "-modcacherw")
 	cmd.Args = append(cmd.Args, "-mod=mod")
-	br.goPath, err = ioutil.TempDir("", "gopath")
+	br.goPath, err = os.MkdirTemp("", "gopath")
 	if err != nil {
 		log.Printf("error creating temp directory: %v", err)
 		return nil, fmt.Errorf("error creating temp directory: %v", err)
@@ -537,7 +536,7 @@ func sandboxRun(ctx context.Context, exePath string, testParam string) (execRes 
 		stats.RecordWithTags(ctx, []tag.Mutator{tag.Upsert(kGoBuildSuccess, status)},
 			mGoRunLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
 	}()
-	exeBytes, err := ioutil.ReadFile(exePath)
+	exeBytes, err := os.ReadFile(exePath)
 	if err != nil {
 		return execRes, err
 	}
@@ -551,7 +550,7 @@ func sandboxRun(ctx context.Context, exePath string, testParam string) (execRes 
 	if testParam != "" {
 		sreq.Header.Add("X-Argument", testParam)
 	}
-	sreq.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(exeBytes)), nil }
+	sreq.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(exeBytes)), nil }
 	res, err := sandboxBackendClient().Do(sreq)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -586,7 +585,7 @@ func playgroundGoproxy() string {
 // healthCheck attempts to build a binary from the source in healthProg.
 // It returns any error returned from sandboxBuild, or nil if none is returned.
 func (s *server) healthCheck(ctx context.Context) error {
-	tmpDir, err := ioutil.TempDir("", "sandbox")
+	tmpDir, err := os.MkdirTemp("", "sandbox")
 	if err != nil {
 		return fmt.Errorf("error creating temp directory: %v", err)
 	}
