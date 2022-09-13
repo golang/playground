@@ -9,7 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -97,9 +97,9 @@ func TestEdit(t *testing.T) {
 		}
 		if tc.respBody != nil {
 			defer resp.Body.Close()
-			b, err := ioutil.ReadAll(resp.Body)
+			b, err := io.ReadAll(resp.Body)
 			if err != nil {
-				t.Errorf("%s: ioutil.ReadAll(resp.Body): %v", tc.desc, err)
+				t.Errorf("%s: io.ReadAll(resp.Body): %v", tc.desc, err)
 			}
 			if !bytes.Equal(b, tc.respBody) {
 				t.Errorf("%s: got unexpected body %q; want %q", tc.desc, b, tc.respBody)
@@ -152,9 +152,9 @@ func TestServer(t *testing.T) {
 		}
 		if tc.respBody != nil {
 			defer resp.Body.Close()
-			b, err := ioutil.ReadAll(resp.Body)
+			b, err := io.ReadAll(resp.Body)
 			if err != nil {
-				t.Errorf("%s: ioutil.ReadAll(resp.Body): %v", tc.desc, err)
+				t.Errorf("%s: io.ReadAll(resp.Body): %v", tc.desc, err)
 			}
 			if !bytes.Contains(b, tc.respBody) {
 				t.Errorf("%s: got unexpected body %q; want contains %q", tc.desc, b, tc.respBody)
@@ -292,9 +292,9 @@ func TestCommandHandler(t *testing.T) {
 			}
 			if tc.respBody != nil {
 				defer resp.Body.Close()
-				b, err := ioutil.ReadAll(resp.Body)
+				b, err := io.ReadAll(resp.Body)
 				if err != nil {
-					t.Errorf("%s: ioutil.ReadAll(resp.Body): %v", tc.desc, err)
+					t.Errorf("%s: io.ReadAll(resp.Body): %v", tc.desc, err)
 				}
 				if !bytes.Equal(b, tc.respBody) {
 					t.Errorf("%s: got unexpected body %q; want %q", tc.desc, b, tc.respBody)

@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -325,7 +324,7 @@ func runInGvisor() {
 	if _, err := io.WriteString(os.Stdout, containedStartMessage); err != nil {
 		log.Fatalf("writing to stdout: %v", err)
 	}
-	slurp, err := ioutil.ReadAll(os.Stdin)
+	slurp, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatalf("reading stdin in contained mode: %v", err)
 	}
@@ -335,7 +334,7 @@ func runInGvisor() {
 	}
 	metaJSON, bin := slurp[:nl], slurp[nl+1:]
 
-	if err := ioutil.WriteFile(binPath, bin, 0755); err != nil {
+	if err := os.WriteFile(binPath, bin, 0755); err != nil {
 		log.Fatalf("writing contained binary: %v", err)
 	}
 	defer os.Remove(binPath) // not that it matters much, this container will be nuked
@@ -553,7 +552,7 @@ func runHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { <-runSem }()
 
-	bin, err := ioutil.ReadAll(http.MaxBytesReader(w, r.Body, maxBinarySize))
+	bin, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBinarySize))
 	if err != nil {
 		log.Printf("failed to read request body: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
