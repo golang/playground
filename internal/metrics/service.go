@@ -66,6 +66,7 @@ func NewService(resource *MonitoredResource, views []*view.View) (*Service, erro
 	view.SetReportingPeriod(time.Minute)
 	// Start the metrics exporter.
 	if err := sde.StartMetricsExporter(); err != nil {
+		sde.Close()
 		return nil, err
 	}
 
