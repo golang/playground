@@ -28,7 +28,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -49,7 +48,8 @@ const (
 
 	// progName is the implicit program name written to the temp
 	// dir and used in compiler and vet errors.
-	progName = "prog.go"
+	progName     = "prog.go"
+	progTestName = "prog_test.go"
 )
 
 const (
@@ -171,7 +171,7 @@ func cacheKey(prefix, body string) string {
 	return fmt.Sprintf("%s-%s-%x", prefix, runtime.Version(), h.Sum(nil))
 }
 
-// isTestFunc tells whether fn has the type of a testing function.
+// isTestFunc tells whether fn has the type of a testing, or fuzz function, or a TestMain func.
 func isTestFunc(fn *ast.FuncDecl) bool {
 	if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 ||
 		fn.Type.Params.List == nil ||
@@ -183,19 +183,19 @@ func isTestFunc(fn *ast.FuncDecl) bool {
 	if !ok {
 		return false
 	}
-	// We can't easily check that the type is *testing.T
+	// We can't easily check that the type is *testing.T or *testing.F
 	// because we don't know how testing has been imported,
-	// but at least check that it's *T or *something.T.
-	if name, ok := ptr.X.(*ast.Ident); ok && name.Name == "T" {
+	// but at least check that it's *T (or *F) or *something.T (or *something.F).
+	if name, ok := ptr.X.(*ast.Ident); ok && (name.Name == "T" || name.Name == "F" || name.Name == "M") {
 		return true
 	}
-	if sel, ok := ptr.X.(*ast.SelectorExpr); ok && sel.Sel.Name == "T" {
+	if sel, ok := ptr.X.(*ast.SelectorExpr); ok && (sel.Sel.Name == "T" || sel.Sel.Name == "F" || sel.Sel.Name == "M") {
 		return true
 	}
 	return false
 }
 
-// isTest tells whether name looks like a test (or benchmark, according to prefix).
+// isTest tells whether name looks like a test (or benchmark, or fuzz, according to prefix).
 // It is a Test (say) if there is a character after Test that is not a lower-case letter.
 // We don't want mistaken Testimony or erroneous Benchmarking.
 func isTest(name, prefix string) bool {
@@ -213,32 +213,22 @@ func isTest(name, prefix string) bool {
 // If the main function is present or there are no tests or examples, it returns nil.
 // getTestProg emulates the "go test" command as closely as possible.
 // Benchmarks are not supported because of sandboxing.
-func getTestProg(src []byte) []byte {
+func isTestProg(src []byte) bool {
 	fset := token.NewFileSet()
 	// Early bail for most cases.
 	f, err := parser.ParseFile(fset, progName, src, parser.ImportsOnly)
 	if err != nil || f.Name.Name != "main" {
-		return nil
-	}
-
-	// importPos stores the position to inject the "testing" import declaration, if needed.
-	importPos := fset.Position(f.Name.End()).Offset
-
-	var testingImported bool
-	for _, s := range f.Imports {
-		if s.Path.Value == `"testing"` && s.Name == nil {
-			testingImported = true
-			break
-		}
+		return false
 	}
 
 	// Parse everything and extract test names.
 	f, err = parser.ParseFile(fset, progName, src, parser.ParseComments)
 	if err != nil {
-		return nil
+		return false
 	}
 
-	var tests []string
+	var hasTest bool
+	var hasFuzz bool
 	for _, d := range f.Decls {
 		n, ok := d.(*ast.FuncDecl)
 		if !ok {
@@ -249,78 +239,23 @@ func getTestProg(src []byte) []byte {
 		case name == "main":
 			// main declared as a method will not obstruct creation of our main function.
 			if n.Recv == nil {
-				return nil
+				return false
 			}
+		case name == "TestMain" && isTestFunc(n):
+			hasTest = true
 		case isTest(name, "Test") && isTestFunc(n):
-			tests = append(tests, name)
+			hasTest = true
+		case isTest(name, "Fuzz") && isTestFunc(n):
+			hasFuzz = true
 		}
 	}
 
-	// Tests imply imported "testing" package in the code.
-	// If there is no import, bail to let the compiler produce an error.
-	if !testingImported && len(tests) > 0 {
-		return nil
+	if hasTest || hasFuzz {
+		return true
 	}
 
-	// We emulate "go test". An example with no "Output" comment is compiled,
-	// but not executed. An example with no text after "Output:" is compiled,
-	// executed, and expected to produce no output.
-	var ex []*doc.Example
-	// exNoOutput indicates whether an example with no output is found.
-	// We need to compile the program containing such an example even if there are no
-	// other tests or examples.
-	exNoOutput := false
-	for _, e := range doc.Examples(f) {
-		if e.Output != "" || e.EmptyOutput {
-			ex = append(ex, e)
-		}
-		if e.Output == "" && !e.EmptyOutput {
-			exNoOutput = true
-		}
-	}
-
-	if len(tests) == 0 && len(ex) == 0 && !exNoOutput {
-		return nil
-	}
-
-	if !testingImported && (len(ex) > 0 || exNoOutput) {
-		// In case of the program with examples and no "testing" package imported,
-		// add import after "package main" without modifying line numbers.
-		importDecl := []byte(`;import "testing";`)
-		src = bytes.Join([][]byte{src[:importPos], importDecl, src[importPos:]}, nil)
-	}
-
-	data := struct {
-		Tests    []string
-		Examples []*doc.Example
-	}{
-		tests,
-		ex,
-	}
-	code := new(bytes.Buffer)
-	if err := testTmpl.Execute(code, data); err != nil {
-		panic(err)
-	}
-	src = append(src, code.Bytes()...)
-	return src
+	return len(doc.Examples(f)) > 0
 }
-
-var testTmpl = template.Must(template.New("main").Parse(`
-func main() {
-	matchAll := func(t string, pat string) (bool, error) { return true, nil }
-	tests := []testing.InternalTest{
-{{range .Tests}}
-		{"{{.}}", {{.}}},
-{{end}}
-	}
-	examples := []testing.InternalExample{
-{{range .Examples}}
-		{"Example{{.Name}}", Example{{.Name}}, {{printf "%q" .Output}}, {{.Unordered}}},
-{{end}}
-	}
-	testing.Main(matchAll, tests, nil, examples)
-}
-`))
 
 var failedTestPattern = "--- FAIL"
 
@@ -341,7 +276,7 @@ func compileAndRun(ctx context.Context, req *request) (*response, error) {
 		return nil, err
 	}
 	if br.errorMessage != "" {
-		return &response{Errors: br.errorMessage}, nil
+		return &response{Errors: removeBanner(br.errorMessage)}, nil
 	}
 
 	execRes, err := sandboxRun(ctx, br.exePath, br.testParam)
@@ -425,11 +360,10 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	defer br.cleanup()
 	var buildPkgArg = "."
 	if files.Num() == 1 && len(files.Data(progName)) > 0 {
-		buildPkgArg = progName
 		src := files.Data(progName)
-		if code := getTestProg(src); code != nil {
+		if isTestProg(src) {
 			br.testParam = "-test.v"
-			files.AddFile(progName, code)
+			files.MvFile(progName, progTestName)
 		}
 	}
 
@@ -474,7 +408,15 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 		return nil, fmt.Errorf("error copying GOCACHE: %v", err)
 	}
 
-	cmd := exec.Command("/usr/local/go-faketime/bin/go", "build", "-o", br.exePath, "-tags=faketime")
+	var goArgs []string
+	if br.testParam != "" {
+		goArgs = append(goArgs, "test", "-c")
+	} else {
+		goArgs = append(goArgs, "build")
+	}
+	goArgs = append(goArgs, "-o", br.exePath, "-tags=faketime")
+
+	cmd := exec.Command("/usr/local/go-faketime/bin/go", goArgs...)
 	cmd.Dir = tmpDir
 	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}
 	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
@@ -666,6 +608,16 @@ func initSandboxBackendClient() {
 	default:
 		sandboxBackendOnce.c = http.DefaultClient
 	}
+}
+
+// removeBanner remove package name banner
+func removeBanner(output string) string {
+	if strings.HasPrefix(output, "#") {
+		if nl := strings.Index(output, "\n"); nl != -1 {
+			output = output[nl+1:]
+		}
+	}
+	return output
 }
 
 const healthProg = `

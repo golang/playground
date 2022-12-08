@@ -274,7 +274,7 @@ func TestSanity(t *testing.T) {
 func ExampleNotExecuted() {
 	// Output: it should not run
 }
-`, want: "", errors: "./prog.go:4:20: undefined: testing\n"},
+`, want: "", errors: "./prog_test.go:4:20: undefined: testing\n"},
 
 	{
 		name: "test_with_import_ignored",
@@ -469,7 +469,7 @@ func main() {
 	{
 		name:          "compile_modules_with_vet",
 		withVet:       true,
-		wantVetErrors: "go: finding module for package github.com/bradfitz/iter\ngo: found github.com/bradfitz/iter in github.com/bradfitz/iter v0.0.0-20191230175014-e8f45d346db8\n# play\n./prog.go:6:2: fmt.Printf format %v reads arg #1, but call has 0 args\n",
+		wantVetErrors: "./prog.go:6:2: fmt.Printf format %v reads arg #1, but call has 0 args\n",
 		prog: `
 package main
 import ("fmt"; "github.com/bradfitz/iter")
@@ -581,4 +581,56 @@ func main() {
 	fmt.Println(net.ParseIP("1.2.3.4"))
 }
 `, want: "1.2.3.4\n"},
+	{
+		name: "fuzz_executed",
+		prog: `
+package main
+
+import "testing"
+
+func FuzzSanity(f *testing.F) {
+	f.Add("a")
+	f.Fuzz(func(t *testing.T, v string) {
+	})
+}
+`, want: `=== RUN   FuzzSanity
+=== RUN   FuzzSanity/seed#0
+--- PASS: FuzzSanity (0.00s)
+    --- PASS: FuzzSanity/seed#0 (0.00s)
+PASS`},
+	{
+		name: "test_main",
+		prog: `
+package main
+
+import (
+	"os"
+	"testing"
+)
+
+func TestMain(m *testing.M) {
+	os.Exit(m.Run())
+}`, want: `testing: warning: no tests to run
+PASS`,
+	},
+	{
+		name: "multiple_files_no_banner",
+		prog: `
+package main
+
+func main() {
+	print()
+}
+
+-- foo.go --
+package main
+
+import "fmt"
+
+func print() {
+	=fmt.Println("Hello, playground")
+}
+`, errors: `./foo.go:6:2: syntax error: unexpected =, expecting }
+`,
+	},
 }

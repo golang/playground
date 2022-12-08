@@ -83,12 +83,6 @@ func vetCheckInDir(ctx context.Context, dir, goPath string) (output string, exec
 	// Rewrite compiler errors to refer to progName
 	// instead of '/tmp/sandbox1234/main.go'.
 	errs := strings.Replace(string(out), dir, "", -1)
-
-	// Remove vet's package name banner.
-	if strings.HasPrefix(errs, "#") {
-		if nl := strings.Index(errs, "\n"); nl != -1 {
-			errs = errs[nl+1:]
-		}
-	}
+	errs = removeBanner(errs)
 	return errs, nil
 }

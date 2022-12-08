@@ -59,6 +59,12 @@ func TestIsTest(t *testing.T) {
 		{"Benchmark", Benchmark1IsABenchmark, true},
 
 		{"Benchmark", BenchmarkisNotABenchmark, false},
+
+		{"Fuzz", Fuzz, true},
+		{"Fuzz", Fuzz1IsAFuzz, true},
+		{"Fuzz", FuzzÑIsAFuzz, true},
+
+		{"Fuzz", FuzzisNotAFuzz, false},
 	} {
 		name := nameOf(t, tc.f)
 		t.Run(name, func(t *testing.T) {
@@ -108,7 +114,7 @@ func TestisNotATest(t *testing.T) {
 	panic("This is not a valid test function.")
 }
 
-// Test11IsATest is a valid test function.
+// Test1IsATest is a valid test function.
 func Test1IsATest(t *testing.T) {
 }
 
@@ -180,4 +186,26 @@ func Benchmark1IsABenchmark(b *testing.B) {
 // Please ignore any lint or vet warnings for this function.
 func BenchmarkisNotABenchmark(b *testing.B) {
 	panic("This is not a valid benchmark function.")
+}
+
+// FuzzisNotAFuzz is not a fuzz test function, despite appearances.
+//
+// Please ignore any lint or vet warnings for this function.
+func FuzzisNotAFuzz(f *testing.F) {
+	panic("This is not a valid fuzzing function.")
+}
+
+// Fuzz1IsAFuzz is a valid fuzz function.
+func Fuzz1IsAFuzz(f *testing.F) {
+	f.Skip()
+}
+
+// Fuzz is a fuzz with a minimal name.
+func Fuzz(f *testing.F) {
+	f.Skip()
+}
+
+// FuzzÑIsAFuzz is a fuzz with an interesting Unicode name.
+func FuzzÑIsAFuzz(f *testing.F) {
+	f.Skip()
 }

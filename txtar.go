@@ -48,6 +48,30 @@ func (fs *fileSet) AddFile(filename string, src []byte) {
 	}
 }
 
+func (fs *fileSet) Update(filename string, src []byte) {
+	if fs.Contains(filename) {
+		fs.m[filename] = src
+	}
+}
+
+func (fs *fileSet) MvFile(source, target string) {
+	if fs.m == nil {
+		return
+	}
+	data, ok := fs.m[source]
+	if !ok {
+		return
+	}
+	fs.m[target] = data
+	delete(fs.m, source)
+	for i := range fs.files {
+		if fs.files[i] == source {
+			fs.files[i] = target
+			break
+		}
+	}
+}
+
 // Format returns fs formatted as a txtar archive.
 func (fs *fileSet) Format() []byte {
 	a := new(txtar.Archive)
