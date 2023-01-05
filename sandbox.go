@@ -464,6 +464,16 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	br.exePath = filepath.Join(tmpDir, "a.out")
 	goCache := filepath.Join(tmpDir, "gocache")
 
+	// Copy the gocache directory containing .a files for std, so that we can
+	// avoid recompiling std during this build. Using -al (hard linking) is
+	// faster than actually copying the bytes.
+	//
+	// This is necessary as .a files are no longer included in GOROOT following
+	// https://go.dev/cl/432535.
+	if err := exec.Command("cp", "-al", "/gocache", goCache).Run(); err != nil {
+		return nil, fmt.Errorf("error copying GOCACHE: %v", err)
+	}
+
 	cmd := exec.Command("/usr/local/go-faketime/bin/go", "build", "-o", br.exePath, "-tags=faketime")
 	cmd.Dir = tmpDir
 	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}

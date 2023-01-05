@@ -10,7 +10,7 @@
 
 # GO_VERSION is provided by Cloud Build, and is set to the latest
 # version of Go. See the configuration in the deploy directory.
-ARG GO_VERSION=go1.18
+ARG GO_VERSION=go1.19
 
 ############################################################################
 # Build Go at GO_VERSION, and build faketime standard library.
@@ -84,7 +84,10 @@ ENV GO_VERSION ${GO_VERSION}
 ENV PATH="/go/bin:/usr/local/go-faketime/bin:${PATH}"
 
 WORKDIR /usr/local/go-faketime
-RUN ./bin/go install --tags=faketime std
+# golang/go#57495: install std to warm the build cache. We only set
+# GOCACHE=/gocache here to keep it as small as possible, since it must be
+# copied on every build.
+RUN GOCACHE=/gocache ./bin/go install --tags=faketime std
 # Ignore the exit code. go vet std does not pass vet with the faketime
 # patches, but it successfully caches results for when we vet user
 # snippets.
