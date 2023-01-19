@@ -630,7 +630,26 @@ import "fmt"
 func print() {
 	=fmt.Println("Hello, playground")
 }
-`, errors: `./foo.go:6:2: syntax error: unexpected =, expecting }
+`, errors: `./foo.go:6:2: syntax error: unexpected =, expected }
 `,
 	},
+	{
+		name: "multi_files_tests",
+		prog: `
+package main
+import (
+	"testing"
+	_ "play.ground/pkg"
+)
+
+func TestFoo(t *testing.T) {
+}
+-- go.mod --
+module play.ground
+-- pkg/x.go --
+package pkg
+
+`, want: `=== RUN   TestFoo
+--- PASS: TestFoo (0.00s)
+PASS`},
 }

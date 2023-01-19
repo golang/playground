@@ -392,7 +392,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	br = new(buildResult)
 	defer br.cleanup()
 	var buildPkgArg = "."
-	if files.Num() == 1 && len(files.Data(progName)) > 0 {
+	if len(files.Data(progName)) > 0 {
 		src := files.Data(progName)
 		if isTestProg(src) {
 			br.testParam = "-test.v"
