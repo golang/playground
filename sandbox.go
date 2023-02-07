@@ -242,7 +242,7 @@ func isTest(name, prefix string) bool {
 	return !unicode.IsLower(r)
 }
 
-// getTestProg returns source code that executes all valid tests and examples in src.
+// isTestProg returns source code that executes all valid tests and examples in src.
 // If the main function is present or there are no tests or examples, it returns nil.
 // getTestProg emulates the "go test" command as closely as possible.
 // Benchmarks are not supported because of sandboxing.
