@@ -7,41 +7,58 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
-	"golang.org/x/build/maintner/maintnerd/apipb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	"golang.org/x/build/gerrit"
+	"golang.org/x/mod/semver"
 )
 
-var prev = flag.Bool("prev", false, "whether to query the previous Go release, rather than the last (e.g. 1.17 versus 1.18)")
-
-const maintnerURI = "maintner.golang.org:443"
-
 func main() {
+	client := gerrit.NewClient("https://go-review.googlesource.com", gerrit.NoAuth)
+
 	flag.Parse()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, maintnerURI, grpc.WithBlock(),
-		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{NextProtos: []string{"h2"}})))
-	if err != nil {
-		log.Fatalf("error creating grpc client for %q: %v", maintnerURI, err)
-	}
-	mc := apipb.NewMaintnerServiceClient(conn)
 
-	resp, err := mc.ListGoReleases(context.Background(), &apipb.ListGoReleasesRequest{})
+	tagInfo, err := client.GetProjectTags(ctx, "go")
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("error retrieving project tags for 'go': %v", err)
 	}
-	idx := 0
-	if *prev {
-		idx = 1
+
+	if len(tagInfo) == 0 {
+		log.Fatalln("no project tags found for 'go'")
 	}
-	// On success, the maintner API always returns at least two releases.
-	fmt.Print(resp.GetReleases()[idx].GetTagName())
+
+	var versions []string             // semantic Go versions
+	tagMap := make(map[string]string) // version -> tag
+
+	for _, tag := range tagInfo {
+
+		tagName := strings.TrimPrefix(tag.Ref, "refs/tags/")
+
+		var maj, min, patch int // semver numbers corresponding to Go release
+		var err error
+		if _, err = fmt.Sscanf(tagName, "go%d.%d.%d", &maj, &min, &patch); err != nil {
+			_, err = fmt.Sscanf(tagName, "go%d.%d", &maj, &min)
+			patch = 0
+		}
+
+		if err != nil {
+			continue
+		}
+
+		version := fmt.Sprintf("v%d.%d.%d", maj, min, patch)
+		versions = append(versions, version)
+		tagMap[version] = tagName
+
+	}
+
+	semver.Sort(versions)
+
+	fmt.Print(tagMap[versions[len(versions)-1]])
 }
