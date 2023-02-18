@@ -57,8 +57,7 @@ const (
 )
 
 var (
-	errTooMuchOutput = errors.New("Output too large")
-	errRunTimeout    = errors.New("timeout running program")
+	errTooMuchOutput = errors.New("output too large")
 )
 
 // containedStartMessage is the first thing written to stdout by the
