@@ -10,12 +10,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
 	"golang.org/x/build/gerrit"
-	"golang.org/x/mod/semver"
+	"golang.org/x/build/maintner/maintnerd/maintapi/version"
 )
+
+var prev = flag.Bool("prev", false, "whether to query the previous Go release, rather than the last (e.g. 1.17 versus 1.18)")
 
 func main() {
 	client := gerrit.NewClient("https://go-review.googlesource.com", gerrit.NoAuth)
@@ -34,31 +37,45 @@ func main() {
 		log.Fatalln("no project tags found for 'go'")
 	}
 
-	var versions []string             // semantic Go versions
-	tagMap := make(map[string]string) // version -> tag
+	// Find the latest patch version for each major Go version.
+	type majMin struct {
+		maj, min int // maj, min in semver terminology, which corresponds to a major go release
+	}
+	type patchTag struct {
+		patch int
+		tag   string // Go repo tag for this version
+	}
+	latestPatches := make(map[majMin]patchTag) // (maj, min) -> latest patch info
 
 	for _, tag := range tagInfo {
-
 		tagName := strings.TrimPrefix(tag.Ref, "refs/tags/")
-
-		var maj, min, patch int // semver numbers corresponding to Go release
-		var err error
-		if _, err = fmt.Sscanf(tagName, "go%d.%d.%d", &maj, &min, &patch); err != nil {
-			_, err = fmt.Sscanf(tagName, "go%d.%d", &maj, &min)
-			patch = 0
-		}
-
-		if err != nil {
+		maj, min, patch, ok := version.ParseTag(tagName)
+		if !ok {
 			continue
 		}
 
-		version := fmt.Sprintf("v%d.%d.%d", maj, min, patch)
-		versions = append(versions, version)
-		tagMap[version] = tagName
-
+		mm := majMin{maj, min}
+		if latest, ok := latestPatches[mm]; !ok || latest.patch < patch {
+			latestPatches[mm] = patchTag{patch, tagName}
+		}
 	}
 
-	semver.Sort(versions)
+	var mms []majMin
+	for mm := range latestPatches {
+		mms = append(mms, mm)
+	}
+	sort.Slice(mms, func(i, j int) bool {
+		if mms[i].maj != mms[j].maj {
+			return mms[i].maj < mms[j].maj
+		}
+		return mms[i].min < mms[j].min
+	})
 
-	fmt.Print(tagMap[versions[len(versions)-1]])
+	var mm majMin
+	if *prev && len(mms) > 1 {
+		mm = mms[len(mms)-2] // latest patch of the previous Go release
+	} else {
+		mm = mms[len(mms)-1]
+	}
+	fmt.Print(latestPatches[mm].tag)
 }
