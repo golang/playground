@@ -8,7 +8,7 @@
       "entrypoint": "bash",
       "args": [
         "-c",
-        "go run golang.org/x/playground/cmd/latestgo -prev > /workspace/goversion; echo GO_VERSION=`cat /workspace/goversion`"
+        "go run golang.org/x/playground/cmd/latestgo -prev > /workspace/goversion && echo GO_VERSION=`cat /workspace/goversion`"
       ]
     },
     {
