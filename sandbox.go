@@ -79,7 +79,7 @@ type response struct {
 	// VetErrors, if non-empty, contains any vet errors. It is
 	// only populated if request.WithVet was true.
 	VetErrors string `json:",omitempty"`
-	// VetOK reports whether vet ran & passsed. It is only
+	// VetOK reports whether vet ran & passed. It is only
 	// populated if request.WithVet was true. Only one of
 	// VetErrors or VetOK can be non-zero.
 	VetOK bool `json:",omitempty"`
