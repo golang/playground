@@ -85,7 +85,7 @@ type response struct {
 	VetOK bool `json:",omitempty"`
 }
 
-// commandHandler returns a http.HandlerFunc.
+// commandHandler returns an http.HandlerFunc.
 // This handler creates a *request, assigning the "Body" field a value
 // from the "body" form parameter or from the HTTP request body.
 // If there is no cached *response for the combination of cachePrefix and request.Body,
