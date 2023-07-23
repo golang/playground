@@ -171,6 +171,39 @@ func cacheKey(prefix, body string) string {
 	return fmt.Sprintf("%s-%s-%x", prefix, runtime.Version(), h.Sum(nil))
 }
 
+// experiments returns the experiments listed in // GOEXPERIMENT=xxx comments
+// at the top of src.
+func experiments(src string) []string {
+	var exp []string
+	for src != "" {
+		line := src
+		src = ""
+		if i := strings.Index(line, "\n"); i >= 0 {
+			line, src = line[:i], line[i+1:]
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "//") {
+			break
+		}
+		line = strings.TrimSpace(strings.TrimPrefix(line, "//"))
+		if !strings.HasPrefix(line, "GOEXPERIMENT") {
+			continue
+		}
+		line = strings.TrimSpace(strings.TrimPrefix(line, "GOEXPERIMENT"))
+		if !strings.HasPrefix(line, "=") {
+			continue
+		}
+		line = strings.TrimSpace(strings.TrimPrefix(line, "="))
+		if line != "" {
+			exp = append(exp, line)
+		}
+	}
+	return exp
+}
+
 // isTestFunc tells whether fn has the type of a testing, or fuzz function, or a TestMain func.
 func isTestFunc(fn *ast.FuncDecl) bool {
 	if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 ||
@@ -371,6 +404,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 		files.AddFile("go.mod", []byte("module play\n"))
 	}
 
+	var exp []string
 	for f, src := range files.m {
 		// Before multi-file support we required that the
 		// program be in package main, so continue to do that
@@ -382,6 +416,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 			if err == nil && f.Name.Name != "main" {
 				return &buildResult{errorMessage: "package name must be main"}, nil
 			}
+			exp = append(exp, experiments(string(src))...)
 		}
 
 		in := filepath.Join(tmpDir, f)
@@ -421,6 +456,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}
 	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
 	cmd.Env = append(cmd.Env, "CGO_ENABLED=0")
+	cmd.Env = append(cmd.Env, "GOEXPERIMENT="+strings.Join(exp, ","))
 	// Create a GOPATH just for modules to be downloaded
 	// into GOPATH/pkg/mod.
 	cmd.Args = append(cmd.Args, "-modcacherw")

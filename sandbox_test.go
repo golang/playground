@@ -14,6 +14,28 @@ import (
 	"testing"
 )
 
+// TestExperiments tests that experiment lines are recognized.
+func TestExperiments(t *testing.T) {
+	var tests = []struct {
+		src string
+		exp []string
+	}{
+		{"//GOEXPERIMENT=active\n\npackage main", []string{"active"}},
+		{"   //   GOEXPERIMENT=   active   \n\npackage main", []string{"active"}},
+		{"   //   GOEXPERIMENT=   active   \n\npackage main", []string{"active"}},
+		{"   //   GOEXPERIMENT   =   active   \n\npackage main", []string{"active"}},
+		{"//GOEXPERIMENT=foo\n\n// GOEXPERIMENT=bar\n\npackage main", []string{"foo", "bar"}},
+		{"/* hello world */\n// GOEXPERIMENT=ignored\n", nil},
+		{"package main\n// GOEXPERIMENT=ignored\n", nil},
+	}
+
+	for _, tt := range tests {
+		if exp := experiments(tt.src); !reflect.DeepEqual(exp, tt.exp) {
+			t.Errorf("experiments(%q) = %q, want %q", tt.src, exp, tt.exp)
+		}
+	}
+}
+
 // TestIsTest verifies that the isTest helper function matches
 // exactly (and only) the names of functions recognized as tests.
 func TestIsTest(t *testing.T) {
