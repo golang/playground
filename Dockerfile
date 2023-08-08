@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 
 ENV GOPATH /go
 ENV GOROOT_BOOTSTRAP=/usr/local/go-bootstrap
-ENV GO_BOOTSTRAP_VERSION go1.18
+ENV GO_BOOTSTRAP_VERSION go1.20.6
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
 
