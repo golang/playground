@@ -154,7 +154,7 @@ func decode(kind string, output []byte) ([]event, error) {
 		if t.Before(last) {
 			// Force timestamps to be monotonic. (This could
 			// be an encoding error, which we ignore now but will
-			// will likely be picked up when decoding the length.)
+			// likely be picked up when decoding the length.)
 			t = last
 		}
 		n := int(binary.BigEndian.Uint32(header[8:]))
