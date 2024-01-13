@@ -2,18 +2,15 @@
   "steps": [
     {
       "name": "golang",
-      "env": [
-        "GO111MODULE=on"
-      ],
-      "entrypoint": "bash",
+      "entrypoint": "sh",
       "args": [
         "-c",
-        "go run golang.org/x/playground/cmd/latestgo > /workspace/goversion; echo GO_VERSION=`cat /workspace/goversion`"
+        "go run golang.org/x/playground/cmd/latestgo > /workspace/goversion && echo GO_VERSION=`cat /workspace/goversion`"
       ]
     },
     {
       "name": "gcr.io/cloud-builders/docker",
-      "entrypoint": "bash",
+      "entrypoint": "sh",
       "args": [
         "-c",
         "docker build --build-arg GO_VERSION=`cat /workspace/goversion` -t gcr.io/$PROJECT_ID/playground ."
@@ -34,6 +31,14 @@
         "app.yaml",
         "--project=$PROJECT_ID",
         "--image-url=gcr.io/$PROJECT_ID/playground:latest"
+      ]
+    },
+    {
+      "name": "golang",
+      "entrypoint": "sh",
+      "args": [
+        "-c",
+        "go run golang.org/x/website/cmd/versionprune@latest -dry_run=false -project=$PROJECT_ID -service=play"
       ]
     }
   ],
