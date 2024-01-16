@@ -107,9 +107,11 @@ func allowShare(r *http.Request) bool {
 	if r.Header.Get("X-AppEngine-Country") != "CN" {
 		return true
 	}
-	for _, prefix := range temporaryAllowListIPPrefixes {
-		if strings.HasPrefix(r.RemoteAddr, prefix) {
-			return true
+	for _, forward := range strings.Split(r.Header.Get("X-Forwarded-For"), ",") {
+		for _, prefix := range temporaryAllowListIPPrefixes {
+			if strings.HasPrefix(strings.TrimSpace(forward), prefix) {
+				return true
+			}
 		}
 	}
 	return false
