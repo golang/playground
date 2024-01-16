@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -82,9 +83,34 @@ func (s *server) handleShare(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, id)
 }
 
+// golang/go#65081: the IP prefixes below have been observed in proxied traffic
+// from go.dev to play.golang.org, and as of 2024-01-16 are incorrectly
+// identified as CN by X-AppEngine-Country. Using geoIP tooling, these were all
+// verified as having temporarily been categorized as CN in early January, but
+// are currently US.
+//
+// While this is being investigated, hard-code a temporary allow list for these
+// IPs to get the playground working again.
+//
+// Per https://www.gstatic.com/ipranges/goog.json, these are Google IPs.
+var temporaryAllowListIPPrefixes = []string{
+	"2600:1900:2001:2",
+	"2600:1900:2001:3",
+	"2600:1900:2000:1b",
+	"2600:1900:2000:1d",
+	"2600:1900:2000:38",
+	"2600:1900:2000:37",
+	"2600:1900:2000:9",
+}
+
 func allowShare(r *http.Request) bool {
-	if r.Header.Get("X-AppEngine-Country") == "CN" {
-		return false
+	if r.Header.Get("X-AppEngine-Country") != "CN" {
+		return true
 	}
-	return true
+	for _, prefix := range temporaryAllowListIPPrefixes {
+		if strings.HasPrefix(r.RemoteAddr, prefix) {
+			return true
+		}
+	}
+	return false
 }
