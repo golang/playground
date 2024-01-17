@@ -20,7 +20,6 @@ var editTemplate = template.Must(template.ParseFiles("edit.html"))
 
 type editData struct {
 	Snippet   *snippet
-	Share     bool
 	Analytics bool
 	GoVersion string
 	Gotip     bool
@@ -48,11 +47,6 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 
 	snip := &snippet{Body: []byte(s.examples.hello())}
 	if strings.HasPrefix(r.URL.Path, "/p/") {
-		if !allowShare(r) {
-			w.WriteHeader(http.StatusUnavailableForLegalReasons)
-			w.Write([]byte(`<h1>Unavailable For Legal Reasons</h1><p>Viewing and/or sharing code snippets is not available in your country for legal reasons. This message might also appear if your country is misdetected. If you believe this is an error, please <a href="https://golang.org/issue">file an issue</a>.</p>`))
-			return
-		}
 		id := r.URL.Path[3:]
 		serveText := false
 		if strings.HasSuffix(id, ".go") {
@@ -88,7 +82,6 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := &editData{
 		Snippet:   snip,
-		Share:     allowShare(r),
 		GoVersion: runtime.Version(),
 		Gotip:     s.gotip,
 		Examples:  s.examples.examples,
