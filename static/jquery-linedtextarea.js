@@ -24,9 +24,8 @@
 			var textarea = $(this);
 
 			/* Wrap the text area in the elements we need */
-			textarea.wrap("<div class='linedtextarea' style='height:100%; overflow:hidden'></div>");
-			textarea.width("97%");
-			textarea.parent().prepend("<div class='lines' style='width:3%'></div>");
+			textarea.wrap("<div class='linedtextarea' style='height:100%; overflow:hidden;display:flex;'></div>");
+			textarea.parent().prepend("<div class='lines' style='height: max-content;'></div>");
 			var linesDiv = textarea.parent().find(".lines");
 
 			var scroll = function(tn) {
