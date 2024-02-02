@@ -62,7 +62,7 @@ func vetCheckInDir(ctx context.Context, dir, goPath string) (output string, exec
 			mGoVetLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
 	}()
 
-	cmd := exec.Command("go", "vet", "--tags=faketime")
+	cmd := exec.Command("go", "vet", "--tags=faketime", "--mod=mod")
 	cmd.Dir = dir
 	// Linux go binary is not built with CGO_ENABLED=0.
 	// Prevent vet to compile packages in cgo mode.

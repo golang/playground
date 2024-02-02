@@ -633,40 +633,4 @@ func print() {
 `, errors: `./foo.go:6:2: syntax error: unexpected =, expecting }
 `,
 	},
-	{
-		name: "workspace",
-		prog: `
-package main
-
-import "internal/bar"
-
-func main() {
-	bar.Print()
-}
--- go.work --
-go 1.18
-
-use (
-	.
-	./projects/bar
-)
--- go.mod --
-module internal/foo
-
-go 1.18
-
-require internal/bar v0.0.0
--- projects/bar/go.mod --
-module internal/bar
-
-go 1.18
--- projects/bar/upper.go --
-package bar
-
-import "fmt"
-
-func Print() {
-	fmt.Println("bar")
-}
-`, want: "bar\n"},
 }

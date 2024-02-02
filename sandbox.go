@@ -460,6 +460,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	// Create a GOPATH just for modules to be downloaded
 	// into GOPATH/pkg/mod.
 	cmd.Args = append(cmd.Args, "-modcacherw")
+	cmd.Args = append(cmd.Args, "-mod=mod")
 	br.goPath, err = os.MkdirTemp("", "gopath")
 	if err != nil {
 		log.Printf("error creating temp directory: %v", err)
@@ -470,12 +471,6 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	cmd.Env = append(cmd.Env, "GOPATH="+br.goPath)
 	out := &bytes.Buffer{}
 	cmd.Stderr, cmd.Stdout = out, out
-
-	// Run "go mod tidy" before executing a command.
-	_, err = modTidy(ctx, tmpDir, br.goPath)
-	if err != nil {
-		return nil, fmt.Errorf("error running go mod tidy: %v", err)
-	}
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("error starting go build: %v", err)
