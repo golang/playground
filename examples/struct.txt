@@ -1,0 +1,14 @@
+package main
+
+import "fmt"
+
+type Person struct {
+	FirstName string
+	LastName  string
+}
+
+func main() {
+	john := Person{FirstName: "John", LastName: "Doe"}
+	fmt.Println(john)
+    fmt.Println(john.FirstName)
+}
