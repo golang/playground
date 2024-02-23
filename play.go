@@ -79,10 +79,8 @@ func (r *Recorder) Events() ([]Event, error) {
 
 	events := sortedMerge(evOut, evErr)
 
-	var (
-		out []Event
-		now = epoch
-	)
+	now := epoch
+	out := make([]Event, 0, len(events))
 
 	for _, e := range events {
 		delay := e.time.Sub(now)
