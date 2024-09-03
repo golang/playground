@@ -10,7 +10,7 @@
 
 # GO_VERSION is provided by Cloud Build, and is set to the latest
 # version of Go. See the configuration in the deploy directory.
-ARG GO_VERSION=go1.19
+ARG GO_VERSION=go1.22.6
 
 ############################################################################
 # Build Go at GO_VERSION, and build faketime standard library.
@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 
 ENV GOPATH /go
 ENV GOROOT_BOOTSTRAP=/usr/local/go-bootstrap
-ENV GO_BOOTSTRAP_VERSION go1.20.6
+ENV GO_BOOTSTRAP_VERSION go1.22.6
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
 

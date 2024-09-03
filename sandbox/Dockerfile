@@ -4,7 +4,7 @@
 # environment so the play-sandbox server can connect to the host's
 # docker daemon, which has the gvisor "runsc" runtime available.
 
-FROM golang:1.18 AS build
+FROM golang:1.22 AS build
 
 COPY go.mod /go/src/playground/go.mod
 COPY go.sum /go/src/playground/go.sum
