@@ -12,6 +12,14 @@
 # version of Go. See the configuration in the deploy directory.
 ARG GO_VERSION=go1.22.6
 
+# GO_BOOTSTRAP_VERSION is downloaded below and used to bootstrap the build from
+# source. Therefore, this should be a version that is guaranteed to have
+# published artifacts, such as the latest minor of the previous major Go
+# release.
+#
+# See also https://go.dev/issue/69238.
+ARG GO_BOOSTRAP_VERSION=go1.22.6
+
 ############################################################################
 # Build Go at GO_VERSION, and build faketime standard library.
 FROM debian:buster AS build-go
@@ -22,9 +30,12 @@ RUN apt-get update && apt-get install -y ${BUILD_DEPS} --no-install-recommends
 
 ENV GOPATH /go
 ENV GOROOT_BOOTSTRAP=/usr/local/go-bootstrap
-ENV GO_BOOTSTRAP_VERSION go1.22.6
+
+# https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact
 ARG GO_VERSION
 ENV GO_VERSION ${GO_VERSION}
+ARG GO_BOOTSTRAP_VERSION
+ENV GO_BOOTSTRAP_VERSION ${GO_BOOTSTRAP_VERSION}
 
 # Get a bootstrap version of Go for building GO_VERSION. At the time
 # of this Dockerfile being built, GO_VERSION's artifacts may not yet

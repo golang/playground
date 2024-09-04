@@ -1,11 +1,19 @@
 {
   "steps": [
     {
+      "name": "golang",
+      "entrypoint": "sh",
+      "args": [
+        "-c",
+        "go run golang.org/x/playground/cmd/latestgo -prev -toolchain > /workspace/gobootstrapversion && echo GO_BOOTSTRAP_VERSION=`cat /workspace/gobootstrapversion`"
+      ]
+    },
+    {
       "name": "gcr.io/cloud-builders/docker",
       "entrypoint": "sh",
       "args": [
         "-c",
-        "docker build --build-arg GO_VERSION=master -t gcr.io/$PROJECT_ID/playground-gotip ."
+        "docker build --build-arg GO_VERSION=master --build-arg GO_BOOTSTRAP_VERSION=`cat /workspace/gobootstrapversion` -t gcr.io/$PROJECT_ID/playground-gotip ."
       ]
     },
     {
