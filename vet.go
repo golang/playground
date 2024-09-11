@@ -36,7 +36,7 @@ func vetCheck(ctx context.Context, req *request) (*response, error) {
 	if err := os.WriteFile(in, []byte(req.Body), 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
-	vetOutput, err := vetCheckInDir(ctx, tmpDir, os.Getenv("GOPATH"))
+	vetOutput, err := vetCheckInDir(ctx, tmpDir, os.Getenv("GOPATH"), nil)
 	if err != nil {
 		// This is about errors running vet, not vet returning output.
 		return nil, err
@@ -49,7 +49,7 @@ func vetCheck(ctx context.Context, req *request) (*response, error) {
 // go vet was able to run, not whether vet reported problem. The
 // returned value is ("", nil) if vet successfully found nothing,
 // and (non-empty, nil) if vet ran and found issues.
-func vetCheckInDir(ctx context.Context, dir, goPath string) (output string, execErr error) {
+func vetCheckInDir(ctx context.Context, dir, goPath string, experiments []string) (output string, execErr error) {
 	start := time.Now()
 	defer func() {
 		status := "success"
@@ -72,6 +72,9 @@ func vetCheckInDir(ctx context.Context, dir, goPath string) (output string, exec
 		"GO111MODULE=on",
 		"GOPROXY="+playgroundGoproxy(),
 	)
+	if len(experiments) > 0 {
+		cmd.Env = append(cmd.Env, "GOEXPERIMENT="+strings.Join(experiments, ","))
+	}
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		return "", nil

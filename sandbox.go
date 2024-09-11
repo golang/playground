@@ -503,7 +503,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	}
 	if vet {
 		// TODO: do this concurrently with the execution to reduce latency.
-		br.vetOut, err = vetCheckInDir(ctx, tmpDir, br.goPath)
+		br.vetOut, err = vetCheckInDir(ctx, tmpDir, br.goPath, exp)
 		if err != nil {
 			return nil, fmt.Errorf("running vet: %v", err)
 		}
@@ -512,7 +512,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 }
 
 // sandboxRun runs a Go binary in a sandbox environment.
-func sandboxRun(ctx context.Context, exePath string, testParam string) (execRes sandboxtypes.Response, err error) {
+func sandboxRun(ctx context.Context, exePath, testParam string) (execRes sandboxtypes.Response, err error) {
 	start := time.Now()
 	defer func() {
 		status := "success"
