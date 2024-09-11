@@ -21,7 +21,7 @@
       "entrypoint": "sh",
       "args": [
         "-c",
-        "docker build --build-arg GO_VERSION=`cat /workspace/goversion` --build_arg GO_BOOTSTRAP_VERSION=`cat /workspace/gobootstrapversion` -t gcr.io/$PROJECT_ID/playground-goprev ."
+        "docker build --build-arg GO_VERSION=`cat /workspace/goversion` --build-arg GO_BOOTSTRAP_VERSION=`cat /workspace/gobootstrapversion` -t gcr.io/$PROJECT_ID/playground-goprev ."
       ]
     },
     {
