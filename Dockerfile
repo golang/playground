@@ -18,7 +18,7 @@ ARG GO_VERSION=go1.22.6
 # release.
 #
 # See also https://go.dev/issue/69238.
-ARG GO_BOOSTRAP_VERSION=go1.22.6
+ARG GO_BOOTSTRAP_VERSION=go1.22.6
 
 ############################################################################
 # Build Go at GO_VERSION, and build faketime standard library.
@@ -59,7 +59,7 @@ RUN ./make.bash
 
 ############################################################################
 # Build playground web server.
-FROM debian:buster as build-playground
+FROM debian:buster AS build-playground
 
 RUN apt-get update && apt-get install -y ca-certificates git --no-install-recommends
 # Build playground from Go built at GO_VERSION.
