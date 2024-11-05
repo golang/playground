@@ -79,4 +79,6 @@ gcloud --project=golang-org --account=you@google.com app deploy app.yaml
 ## Contributing
 
 To submit changes to this repository, see
-https://golang.org/doc/contribute.html.
+https://go.dev/doc/contribute.
+
+The git repository is https://go.googlesource.com/playground.
