@@ -2,11 +2,9 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-# The playground builds Go from a bootstrap version for two reasons:
-# - The playground deployment is triggered before the artifacts are
-#   published for the latest version of Go.
-# - The sandbox builds the Go standard library with a custom build
-#   flag called faketime.
+# The playground builds Go from a bootstrap version because
+# the playground deployment is triggered before the artifacts are
+# published for the latest version of Go.
 
 # GO_VERSION is provided by Cloud Build, and is set to the latest
 # version of Go. See the configuration in the deploy directory.
