@@ -20,7 +20,7 @@ ARG GO_BOOTSTRAP_VERSION=go1.22.6
 
 ############################################################################
 # Build Go at GO_VERSION, and build faketime standard library.
-FROM debian:buster AS build-go
+FROM debian:trixie AS build-go
 LABEL maintainer="golang-dev@googlegroups.com"
 
 ENV BUILD_DEPS 'curl git gcc patch libc6-dev ca-certificates'
@@ -57,7 +57,7 @@ RUN ./make.bash
 
 ############################################################################
 # Build playground web server.
-FROM debian:buster AS build-playground
+FROM debian:trixie AS build-playground
 
 RUN apt-get update && apt-get install -y ca-certificates git --no-install-recommends
 # Build playground from Go built at GO_VERSION.
@@ -77,7 +77,7 @@ RUN go install
 
 ############################################################################
 # Final stage.
-FROM debian:buster
+FROM debian:trixie
 
 RUN apt-get update && apt-get install -y git ca-certificates --no-install-recommends
 
