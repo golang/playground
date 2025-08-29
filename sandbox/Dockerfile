@@ -30,7 +30,7 @@ RUN apt-get install --yes \
         gnupg2 \
         software-properties-common
 RUN bash -c "curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -"
-RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian buster stable"
+RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian trixie stable"
 RUN apt-get update
 RUN apt-get install --yes docker-ce-cli
 
