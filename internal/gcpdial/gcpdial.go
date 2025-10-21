@@ -286,7 +286,7 @@ func (rig regionInstanceGroupLister) ListInstances(ctx context.Context) (ret []s
 	}
 	// TODO: pagination for really large sets? Currently we truncate the results
 	// to the first 500 VMs, which seems like plenty for now.
-	// 500 is the maximum the API supports; see:
+	// 500 is the maximum that the API supports; see:
 	// https://pkg.go.dev/google.golang.org/api/compute/v1?tab=doc#RegionInstanceGroupsListInstancesCall.MaxResults
 	for _, it := range insts.Items {
 		ret = append(ret, it.Instance)

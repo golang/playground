@@ -129,7 +129,7 @@ func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context
 				return
 			}
 			if strings.Contains(resp.Errors, goBuildTimeoutError) || strings.Contains(resp.Errors, runTimeoutError) {
-				// TODO(golang.org/issue/38576) - This should be a http.StatusBadRequest,
+				// TODO(golang.org/issue/38576) - This should be an http.StatusBadRequest,
 				// but the UI requires a 200 to parse the response. It's difficult to know
 				// if we've timed out because of an error in the code snippet, or instability
 				// on the playground itself. Either way, we should try to show the user the

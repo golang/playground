@@ -215,7 +215,7 @@ func listDockerContainers(ctx context.Context) ([]dockerContainer, error) {
 func parseDockerContainers(b []byte) ([]dockerContainer, error) {
 	// Parse the output to ensure it is well-formatted in the structure we expect.
 	var containers []dockerContainer
-	// Each output line is it's own JSON object, so unmarshal one line at a time.
+	// Each output line is its own JSON object, so unmarshal one line at a time.
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	for scanner.Scan() {
 		var do dockerContainer
