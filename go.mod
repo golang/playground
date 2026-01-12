@@ -1,6 +1,6 @@
 module golang.org/x/playground
 
-go 1.24.0
+go 1.24.9
 
 require (
 	cloud.google.com/go/compute/metadata v0.5.0
@@ -10,9 +10,9 @@ require (
 	github.com/bradfitz/gomemcache v0.0.0-20220106215444-fb4bf637b56d
 	github.com/google/go-cmp v0.7.0
 	go.opencensus.io v0.24.0
-	golang.org/x/build v0.0.0-20251205213135-77797900ecb4
-	golang.org/x/mod v0.31.0
-	golang.org/x/tools v0.40.0
+	golang.org/x/build v0.0.0-20260105165919-a5114dbc7626
+	golang.org/x/mod v0.32.0
+	golang.org/x/tools v0.41.0
 	golang.org/x/tools/godoc v0.1.0-deprecated
 	google.golang.org/api v0.136.0
 	google.golang.org/appengine v1.6.8-0.20221117013220-504804fb50de
@@ -42,12 +42,12 @@ require (
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/crypto v0.47.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240930140551-af27646dc61f // indirect
