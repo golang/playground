@@ -1,6 +1,6 @@
 module golang.org/x/playground
 
-go 1.24.9
+go 1.25.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.5.0
