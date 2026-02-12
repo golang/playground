@@ -9,6 +9,7 @@ require (
 	contrib.go.opencensus.io/exporter/stackdriver v0.13.10
 	github.com/bradfitz/gomemcache v0.0.0-20220106215444-fb4bf637b56d
 	github.com/google/go-cmp v0.7.0
+	github.com/jub0bs/cors v0.12.1
 	go.opencensus.io v0.24.0
 	golang.org/x/build v0.0.0-20260206193512-474af8a99b39
 	golang.org/x/mod v0.33.0

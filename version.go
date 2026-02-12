@@ -12,8 +12,6 @@ import (
 )
 
 func (s *server) handleVersion(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
 	tag := build.Default.ReleaseTags[len(build.Default.ReleaseTags)-1]
 	var maj, min int
 	if _, err := fmt.Sscanf(tag, "go%d.%d", &maj, &min); err != nil {

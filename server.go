@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jub0bs/cors"
 	"golang.org/x/tools/godoc/static"
 )
 
@@ -44,24 +45,35 @@ func newServer(options ...func(s *server) error) (*server, error) {
 	if s.examples == nil {
 		return nil, fmt.Errorf("must provide an option func that sets the examples handler")
 	}
-	s.init()
+	if err := s.init(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 
-func (s *server) init() {
-	s.mux.HandleFunc("/", s.handleEdit)
-	s.mux.HandleFunc("/fmt", s.handleFmt)
-	s.mux.HandleFunc("/version", s.handleVersion)
-	s.mux.HandleFunc("/vet", s.commandHandler("vet", vetCheck))
-	s.mux.HandleFunc("/compile", s.commandHandler("prog", compileAndRun))
-	s.mux.HandleFunc("/share", s.handleShare)
+func (s *server) init() error {
+	cors, err := cors.NewMiddleware(cors.Config{
+		Origins: []string{"*"},
+	})
+	if err != nil {
+		return err
+	}
+
+	s.mux.Handle("/", cors.Wrap(http.HandlerFunc(s.handleEdit)))
+	s.mux.Handle("/fmt", cors.Wrap(http.HandlerFunc(s.handleFmt)))
+	s.mux.Handle("/version", cors.Wrap(http.HandlerFunc(s.handleVersion)))
+	s.mux.Handle("/vet", cors.Wrap(s.commandHandler("vet", vetCheck)))
+	s.mux.Handle("/compile", cors.Wrap(s.commandHandler("prog", compileAndRun)))
+	s.mux.Handle("/share", cors.Wrap(http.HandlerFunc(s.handleShare)))
 	s.mux.HandleFunc("/playground.js", s.handlePlaygroundJS)
 	s.mux.HandleFunc("/favicon.ico", handleFavicon)
 	s.mux.HandleFunc("/_ah/health", s.handleHealthCheck)
 
 	staticHandler := http.StripPrefix("/static/", http.FileServer(http.Dir("./static")))
 	s.mux.Handle("/static/", staticHandler)
-	s.mux.Handle("/doc/play/", http.StripPrefix("/doc/play/", s.examples))
+	s.mux.Handle("/doc/play/", http.StripPrefix("/doc/play/", cors.Wrap(s.examples)))
+
+	return nil
 }
 
 func (s *server) handlePlaygroundJS(w http.ResponseWriter, r *http.Request) {

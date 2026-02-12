@@ -12,8 +12,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -29,9 +31,11 @@ type testLogger struct {
 func (l testLogger) Printf(format string, args ...interface{}) {
 	l.t.Logf(format, args...)
 }
+
 func (l testLogger) Errorf(format string, args ...interface{}) {
 	l.t.Errorf(format, args...)
 }
+
 func (l testLogger) Fatalf(format string, args ...interface{}) {
 	l.t.Fatalf(format, args...)
 }
@@ -69,7 +73,7 @@ func TestEdit(t *testing.T) {
 		headers    map[string]string
 		respBody   []byte
 	}{
-		{"OPTIONS no-op", http.MethodOptions, "https://play.golang.org/p/foo", http.StatusOK, nil, nil},
+		{"OPTIONS no-op", http.MethodOptions, "https://play.golang.org/p/foo", http.StatusNotFound, nil, nil},
 		{"foo.play.golang.org to play.golang.org", http.MethodGet, "https://foo.play.golang.org", http.StatusFound, map[string]string{"Location": "https://play.golang.org"}, nil},
 		{"Non-existent page", http.MethodGet, "https://play.golang.org/foo", http.StatusNotFound, nil, nil},
 		{"Unknown snippet", http.MethodGet, "https://play.golang.org/p/foo", http.StatusNotFound, nil, nil},
@@ -83,10 +87,6 @@ func TestEdit(t *testing.T) {
 		w := httptest.NewRecorder()
 		s.handleEdit(w, req)
 		resp := w.Result()
-		corsHeader := "Access-Control-Allow-Origin"
-		if got, want := resp.Header.Get(corsHeader), "*"; got != want {
-			t.Errorf("%s: %q header: got %q; want %q", tc.desc, corsHeader, got, want)
-		}
 		if got, want := resp.StatusCode, tc.statusCode; got != want {
 			t.Errorf("%s: got unexpected status code %d; want %d", tc.desc, got, want)
 		}
@@ -114,7 +114,10 @@ func TestServer(t *testing.T) {
 		t.Fatalf("newServer(testingOptions(t)): %v", err)
 	}
 
-	const shareURL = "https://play.golang.org/share"
+	const (
+		shareURL = "https://play.golang.org/share"
+		fmtURL   = "https://play.golang.org/fmt"
+	)
 	testCases := []struct {
 		desc       string
 		method     string
@@ -124,10 +127,13 @@ func TestServer(t *testing.T) {
 		respBody   []byte
 	}{
 		// Share tests.
-		{"OPTIONS no-op", http.MethodOptions, shareURL, http.StatusOK, nil, nil},
+		{"OPTIONS no-op", http.MethodOptions, shareURL, http.StatusMethodNotAllowed, nil, nil},
 		{"Non-POST request", http.MethodGet, shareURL, http.StatusMethodNotAllowed, nil, nil},
 		{"Standard flow", http.MethodPost, shareURL, http.StatusOK, []byte("Snippy McSnipface"), []byte("N_M_YelfGeR")},
 		{"Snippet too large", http.MethodPost, shareURL, http.StatusRequestEntityTooLarge, make([]byte, maxSnippetSize+1), nil},
+
+		// Edit test.
+		{"Snippet not found", http.MethodGet, "https://play.golang.org/p/z3xP5obroah", http.StatusNotFound, nil, []byte("Snippet not found")},
 
 		// Examples tests.
 		{"Hello example", http.MethodGet, "https://play.golang.org/doc/play/hello.txt", http.StatusOK, nil, []byte("Hello")},
@@ -135,11 +141,31 @@ func TestServer(t *testing.T) {
 		// Gotip examples should not be available on the non-tip playground.
 		{"Gotip example", http.MethodGet, "https://play.golang.org/doc/play/min.gotip.txt", http.StatusNotFound, nil, nil},
 
+		// Version test.
 		{"Versions json", http.MethodGet, "https://play.golang.org/version", http.StatusOK, nil, []byte(runtime.Version())},
+
+		// Format test.
+		{
+			desc:       "fmt",
+			method:     http.MethodPost,
+			url:        fmtURL,
+			statusCode: http.StatusOK,
+			reqBody:    []byte("-- prog.go --\n  package main"),
+			respBody:   []byte("{\"Body\":\"-- prog.go --\\npackage main\\n\",\"Error\":\"\"}\n"),
+		},
 	}
 
 	for _, tc := range testCases {
-		req := httptest.NewRequest(tc.method, tc.url, bytes.NewReader(tc.reqBody))
+		var req *http.Request
+		switch tc.url {
+		case fmtURL:
+			form := url.Values{}
+			form.Set("body", string(tc.reqBody))
+			req = httptest.NewRequest("POST", tc.url, strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		default:
+			req = httptest.NewRequest(tc.method, tc.url, bytes.NewReader(tc.reqBody))
+		}
 		w := httptest.NewRecorder()
 		s.mux.ServeHTTP(w, req)
 		resp := w.Result()
@@ -239,7 +265,7 @@ func TestCommandHandler(t *testing.T) {
 		respBody    []byte
 		shouldCache bool
 	}{
-		{"OPTIONS request", http.MethodOptions, http.StatusOK, nil, nil, false},
+		{"OPTIONS request", http.MethodOptions, http.StatusBadRequest, nil, nil, false},
 		{"GET request", http.MethodGet, http.StatusBadRequest, nil, nil, false},
 		{"Empty POST", http.MethodPost, http.StatusBadRequest, nil, nil, false},
 		{"Failed cmdFunc", http.MethodPost, http.StatusInternalServerError, []byte(`{"Body":"fail"}`), nil, false},
@@ -283,10 +309,6 @@ func TestCommandHandler(t *testing.T) {
 			w := httptest.NewRecorder()
 			testHandler(w, req)
 			resp := w.Result()
-			corsHeader := "Access-Control-Allow-Origin"
-			if got, want := resp.Header.Get(corsHeader), "*"; got != want {
-				t.Errorf("%s: %q header: got %q; want %q", tc.desc, corsHeader, got, want)
-			}
 			if got, want := resp.StatusCode, tc.statusCode; got != want {
 				t.Errorf("%s: got unexpected status code %d; want %d", tc.desc, got, want)
 			}

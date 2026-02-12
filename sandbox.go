@@ -90,15 +90,9 @@ type response struct {
 // from the "body" form parameter or from the HTTP request body.
 // If there is no cached *response for the combination of cachePrefix and request.Body,
 // handler calls cmdFunc and in case of a nil error, stores the value of *response in the cache.
-// The handler returned supports Cross-Origin Resource Sharing (CORS) from any domain.
 func (s *server) commandHandler(cachePrefix string, cmdFunc func(context.Context, *request) (*response, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cachePrefix := cachePrefix // so we can modify it below
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		if r.Method == "OPTIONS" {
-			// This is likely a pre-flight CORS request.
-			return
-		}
 
 		var req request
 		// Until programs that depend on golang.org/x/tools/godoc/static/playground.js

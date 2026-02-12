@@ -21,11 +21,6 @@ type fmtResponse struct {
 }
 
 func (s *server) handleFmt(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	if r.Method == "OPTIONS" {
-		// This is likely a pre-flight CORS request.
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 
 	fs, err := splitFiles([]byte(r.FormValue("body")))

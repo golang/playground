@@ -28,7 +28,6 @@ type example struct {
 }
 
 func (h *examplesHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	for _, e := range h.examples {
 		if e.Path == req.URL.Path {
 			http.ServeContent(w, req, e.Path, h.modtime, strings.NewReader(e.Content))

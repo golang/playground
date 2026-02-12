@@ -43,11 +43,6 @@ func (s *snippet) ID() string {
 }
 
 func (s *server) handleShare(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	if r.Method == "OPTIONS" {
-		// This is likely a pre-flight CORS request.
-		return
-	}
 	if r.Method != "POST" {
 		http.Error(w, "Requires POST", http.StatusMethodNotAllowed)
 		return

@@ -135,10 +135,6 @@ func TestHandleFmt(t *testing.T) {
 			if resp.StatusCode != 200 {
 				t.Fatalf("code = %v", resp.Status)
 			}
-			corsHeader := "Access-Control-Allow-Origin"
-			if got, want := resp.Header.Get(corsHeader), "*"; got != want {
-				t.Errorf("Header %q: got %q; want %q", corsHeader, got, want)
-			}
 			if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
 				t.Fatalf("Content-Type = %q; want application/json", ct)
 			}
