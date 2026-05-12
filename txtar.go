@@ -29,6 +29,9 @@ func (fs *fileSet) Data(filename string) []byte { return fs.m[filename] }
 // Num returns the number of files in the set.
 func (fs *fileSet) Num() int { return len(fs.m) }
 
+// Files returns the filenames in user-provided order.
+func (fs *fileSet) Files() []string { return fs.files }
+
 // Contains reports whether fs contains the given filename.
 func (fs *fileSet) Contains(filename string) bool {
 	_, ok := fs.m[filename]
@@ -136,6 +139,15 @@ func splitFiles(src []byte) (*fileSet, error) {
 			return nil, fmt.Errorf("duplicate file name %q", f.Name)
 		}
 		fs.AddFile(f.Name, f.Data)
+	}
+	for _, filename := range fs.Files() {
+		parts := strings.Split(filename, "/")
+		for i := 1; i < len(parts); i++ {
+			dirname := path.Join(parts[:i]...)
+			if fs.Contains(dirname) {
+				return nil, fmt.Errorf("conflict file/dir name %q and %q", dirname, filename)
+			}
+		}
 	}
 	return fs, nil
 }
