@@ -372,7 +372,7 @@ func (i *inMemCache) Set(key string, v interface{}) error {
 }
 
 // Get implements the responseCache interface.
-// Get fetches a *response from the cache, or returns a memcache.ErrcacheMiss.
+// Get fetches a *response from the cache, or returns a memcache.ErrCacheMiss.
 // It panics for other types to ensure test failure.
 func (i *inMemCache) Get(key string, v interface{}) error {
 	i.l.Lock()

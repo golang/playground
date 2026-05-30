@@ -18,7 +18,7 @@ import (
 // When sandbox time begins.
 var epoch = time.Unix(1257894000, 0)
 
-// Recorder records the standard and error outputs of a sandbox program
+// Recorder records the standard output and standard error of a sandbox program
 // (comprised of playback headers) and converts it to a sequence of Events.
 // It sanitizes each Event's Message to ensure it is valid UTF-8.
 //
@@ -26,7 +26,7 @@ var epoch = time.Unix(1257894000, 0)
 // below) that describes the time the write occurred (in playground time) and
 // the length of the data that will be written. If a non-header is
 // encountered where a header is expected, the output is scanned for the next
-// header and the intervening text string is added to the sequence an event
+// header and the intervening text string is added to the sequence as an event
 // occurring at the same time as the preceding event.
 //
 // A playback header has this structure:

@@ -18,8 +18,8 @@ import (
 )
 
 // vetCheck runs the "vet" tool on the source code in req.Body.
-// In case of no errors it returns an empty, non-nil *response.
-// Otherwise &response.Errors contains found errors.
+// If there are no errors it returns an empty, non-nil *response.
+// Otherwise &response.Errors contains any errors found.
 //
 // Deprecated: this is the handler for the legacy /vet endpoint; use
 // the /compile (compileAndRun) handler instead with the WithVet
@@ -46,7 +46,7 @@ func vetCheck(ctx context.Context, req *request) (*response, error) {
 
 // vetCheckInDir runs go vet in the provided directory, using the
 // provided GOPATH value. The returned error is only about whether
-// go vet was able to run, not whether vet reported problem. The
+// go vet was able to run, not whether vet reported a problem. The
 // returned value is ("", nil) if vet successfully found nothing,
 // and (non-empty, nil) if vet ran and found issues.
 func vetCheckInDir(ctx context.Context, dir, goPath string, experiments []string) (output string, execErr error) {
@@ -65,7 +65,7 @@ func vetCheckInDir(ctx context.Context, dir, goPath string, experiments []string
 	cmd := exec.Command("go", "vet", "--tags=faketime", "--mod=mod")
 	cmd.Dir = dir
 	// Linux go binary is not built with CGO_ENABLED=0.
-	// Prevent vet to compile packages in cgo mode.
+	// Prevent vet from compiling packages in cgo mode.
 	// See #26307.
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOPATH="+goPath)
 	cmd.Env = append(cmd.Env,

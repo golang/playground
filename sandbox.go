@@ -646,7 +646,7 @@ func initSandboxBackendClient() {
 	}
 }
 
-// removeBanner remove package name banner
+// removeBanner removes the package name banner
 func removeBanner(output string) string {
 	if strings.HasPrefix(output, "#") {
 		if nl := strings.Index(output, "\n"); nl != -1 {

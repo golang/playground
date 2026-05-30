@@ -660,7 +660,7 @@ func (l *limitedWriter) Write(p []byte) (int, error) {
 	return l.dst.Write(p)
 }
 
-// switchWriter writes to dst1 until switchAfter is written, the it writes to dst2.
+// switchWriter writes to dst1 until switchAfter is written, then it writes to dst2.
 type switchWriter struct {
 	dst1        io.Writer
 	dst2        io.Writer

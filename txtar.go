@@ -91,7 +91,7 @@ func (fs *fileSet) Format() []byte {
 // files, splitting it based on boundaries as specified by the "txtar"
 // format. It returns an error if any filenames are bogus or
 // duplicates. The implicit filename for the txtar comment (the lines
-// before any txtar separator line) are named "prog.go". It is an
+// before any txtar separator line) is named "prog.go". It is an
 // error to have an explicit file named "prog.go" in addition to
 // having the implicit "prog.go" file (non-empty comment section).
 //

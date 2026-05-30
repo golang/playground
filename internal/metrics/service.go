@@ -141,10 +141,10 @@ func GCEResource(jobName string) (*MonitoredResource, error) {
 	}), nil
 }
 
-// GAEResource returns a *MonitoredResource with fields populated and
+// GAEResource returns a *MonitoredResource with fields populated
 // for StackDriver.
 //
-// The resource will be in StackDrvier's gae_instance type.
+// The resource will be in StackDriver's gae_instance type.
 func GAEResource(ctx context.Context) (*MonitoredResource, error) {
 	// appengine.IsAppEngine is confusingly false as we're using a custom
 	// container and building without the appenginevm build constraint.
