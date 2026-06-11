@@ -10,9 +10,9 @@ require (
 	github.com/bradfitz/gomemcache v0.0.0-20220106215444-fb4bf637b56d
 	github.com/google/go-cmp v0.7.0
 	go.opencensus.io v0.24.0
-	golang.org/x/build v0.0.0-20260508183913-59807704ca68
-	golang.org/x/mod v0.36.0
-	golang.org/x/tools v0.45.0
+	golang.org/x/build v0.0.0-20260609162808-0f0bf49b9a1b
+	golang.org/x/mod v0.37.0
+	golang.org/x/tools v0.46.0
 	golang.org/x/tools/godoc v0.1.0-deprecated
 	google.golang.org/api v0.154.0
 	google.golang.org/appengine v1.6.8-0.20221117013220-504804fb50de
@@ -51,12 +51,12 @@ require (
 	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
-	golang.org/x/crypto v0.51.0 // indirect
-	golang.org/x/net v0.54.1-0.20260508232935-23ee2efe81a3 // indirect
+	golang.org/x/crypto v0.53.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto v0.0.0-20231120223509-83a465c0220f // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240930140551-af27646dc61f // indirect
