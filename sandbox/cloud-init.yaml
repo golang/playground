@@ -10,8 +10,32 @@ write_files:
       "storage-driver": "overlay2",
       "runtimes": { "runsc": { "path": "/var/lib/docker/runsc", "runtimeArgs": [] } }
     }
+- path: /etc/systemd/system/playsandbox.service
+  permissions: 0644
+  owner: root
+  content: |
+    [Unit]
+    Description=Go Playground gVisor Sandbox
+    After=docker.service network-online.target
+    Wants=docker.service network-online.target
+
+    [Service]
+    # 5-minute timeout for runsc download and docker pull on first boot.
+    TimeoutStartSec=300
+    # Auto-restart container on crash for fast local recovery.
+    Restart=always
+    # Download runsc and reload Docker if not already present.
+    ExecStartPre=/bin/sh -c "[ -f /var/lib/docker/runsc ] || (curl -L -o /var/lib/docker/runsc https://storage.googleapis.com/gvisor/releases/release/latest/x86_64/runsc && chmod +x /var/lib/docker/runsc && systemctl reload docker.service)"
+    # Ensure latest sandbox image is pulled.
+    ExecStartPre=/usr/bin/docker pull gcr.io/PROJECT_NAME/playground-sandbox:latest
+    # Run orchestrator container. Privileged is required to spawn sibling gVisor workers.
+    ExecStart=/usr/bin/docker run --rm --name=playsandbox -p 80:80 -v /var/run/docker.sock:/var/run/docker.sock --privileged gcr.io/PROJECT_NAME/playground-sandbox:latest
+    ExecStop=/usr/bin/docker stop playsandbox
+
+    [Install]
+    # Start service automatically on boot when multi-user target is reached.
+    WantedBy=multi-user.target
 
 runcmd:
-- curl -L -o /var/lib/docker/runsc https://storage.googleapis.com/gvisor/releases/release/latest/x86_64/runsc
-- chmod +x /var/lib/docker/runsc
-- systemctl reload docker.service
+- systemctl daemon-reload
+- systemctl enable --now playsandbox.service

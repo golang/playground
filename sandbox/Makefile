@@ -28,18 +28,18 @@ runlocal: docker dockergvisor
 	docker kill sandbox_dev || true
 	docker run --name=sandbox_dev --rm --network=sandnet -ti -p 127.0.0.1:8080:80/tcp -v /var/run/docker.sock:/var/run/docker.sock golang/playground-sandbox:latest --dev
 
-konlet.yaml.expanded: konlet.yaml
-	sed "s/PROJECT_NAME/$(PROJ)/" konlet.yaml > konlet.yaml.expanded
+cloud-init.yaml.expanded: cloud-init.yaml
+	sed "s/PROJECT_NAME/$(PROJ)/" cloud-init.yaml > cloud-init.yaml.expanded
 
 # create_test_vm creates a test VM for interactive debugging.
-create_test_vm: konlet.yaml.expanded
+create_test_vm: cloud-init.yaml.expanded
 	gcloud --project=$(PROJ) compute instances create $(TEST_VM) \
 	--zone $(ZONE) \
 	--network $(NETWORK) \
 	--no-address \
 	--image-project cos-cloud \
-	--image cos-stable-76-12239-60-0 \
-	--metadata-from-file gce-container-declaration=konlet.yaml.expanded,user-data=cloud-init.yaml
+	--image-family cos-stable \
+	--metadata-from-file user-data=cloud-init.yaml.expanded
 
 # delete_test_vm deletes the test VM from create_test_vm.
 delete_test_vm:
