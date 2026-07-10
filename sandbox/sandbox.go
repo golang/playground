@@ -50,13 +50,14 @@ var (
 
 const (
 	maxBinarySize    = 100 << 20
-	startTimeout     = 30 * time.Second
 	runTimeout       = 5 * time.Second
 	maxOutputSize    = 100 << 20
 	memoryLimitBytes = 100 << 20
 )
 
 var (
+	startTimeout     = 30 * time.Second
+	execCommand      = exec.Command
 	errTooMuchOutput = errors.New("Output too large")
 	errRunTimeout    = errors.New("timeout running program")
 )
@@ -135,14 +136,14 @@ func main() {
 		defer ms.Stop()
 	}
 
-	if out, err := exec.Command("docker", "version").CombinedOutput(); err != nil {
+	if out, err := execCommand("docker", "version").CombinedOutput(); err != nil {
 		log.Fatalf("failed to connect to docker: %v, %s", err, out)
 	}
 	if *dev {
 		log.Printf("Running in dev mode; container published to host at: http://localhost:8080/")
 		log.Printf("Run a binary with: curl -v --data-binary @/home/bradfitz/hello http://localhost:8080/run\n")
 	} else {
-		if out, err := exec.Command("docker", "pull", *container).CombinedOutput(); err != nil {
+		if out, err := execCommand("docker", "pull", *container).CombinedOutput(); err != nil {
 			log.Fatalf("error pulling %s: %v, %s", *container, err, out)
 		}
 		log.Printf("Listening on %s", *listenAddr)
@@ -196,7 +197,7 @@ func countDockerContainers(ctx context.Context) {
 // listDockerContainers returns the current running play_run containers reported by docker.
 func listDockerContainers(ctx context.Context) ([]dockerContainer, error) {
 	out := new(bytes.Buffer)
-	cmd := exec.Command("docker", "ps", "--quiet", "--filter", "name=play_run_", "--format", "{{json .}}")
+	cmd := execCommand("docker", "ps", "--filter", "name=play_run_", "--format", "{{json .}}")
 	cmd.Stdout, cmd.Stderr = out, out
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("listDockerContainers: cmd.Start() failed: %w", err)
@@ -220,7 +221,7 @@ func parseDockerContainers(b []byte) ([]dockerContainer, error) {
 	for scanner.Scan() {
 		var do dockerContainer
 		if err := json.Unmarshal(scanner.Bytes(), &do); err != nil {
-			return nil, fmt.Errorf("parseDockerContainers: error parsing docker ps output: %w", err)
+			return nil, fmt.Errorf("parseDockerContainers: error parsing docker ps output on line %q: %w", scanner.Text(), err)
 		}
 		containers = append(containers, do)
 	}
@@ -348,7 +349,7 @@ func runInGvisor() {
 		log.Fatalf("writing header to stderr: %v", err)
 	}
 
-	cmd := exec.Command(binPath)
+	cmd := execCommand(binPath)
 	cmd.Args = append(cmd.Args, meta.Args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -368,17 +369,19 @@ func runInGvisor() {
 
 func makeWorkers() {
 	ctx := context.Background()
+	log.Printf("makeWorkers: starting %d workers", *numWorkers)
 	stats.Record(ctx, mMaxContainers.M(int64(*numWorkers)))
 	for i := 0; i < *numWorkers; i++ {
-		go workerLoop(ctx)
+		go workerLoop(ctx, i)
 	}
 }
 
-func workerLoop(ctx context.Context) {
+func workerLoop(ctx context.Context, id int) {
+	log.Printf("workerLoop %d: started", id)
 	for {
 		c, err := startContainer(ctx)
 		if err != nil {
-			log.Printf("error starting container: %v", err)
+			log.Printf("workerLoop %d: error starting container: %v", id, err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -430,7 +433,7 @@ func getContainer(ctx context.Context) (*Container, error) {
 	}
 }
 
-func startContainer(ctx context.Context) (c *Container, err error) {
+func startContainer(ctx context.Context) (_ *Container, err error) {
 	start := time.Now()
 	defer func() {
 		status := "success"
@@ -444,7 +447,7 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 
 	name := "play_run_" + randHex(8)
 	setContainerWanted(name, true)
-	cmd := exec.Command("docker", "run",
+	cmd := execCommand("docker", "run",
 		"--name="+name,
 		"--rm",
 		"--tmpfs=/tmpfs:exec",
@@ -470,7 +473,7 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-	c = &Container{
+	c := &Container{
 		name:      name,
 		stdin:     stdin,
 		stdout:    stdout,
@@ -480,7 +483,9 @@ func startContainer(ctx context.Context) (c *Container, err error) {
 		waitErr:   make(chan error, 1),
 	}
 	go func() {
-		c.waitErr <- internal.WaitOrStop(ctx, cmd, os.Interrupt, 250*time.Millisecond)
+		err := internal.WaitOrStop(ctx, cmd, os.Interrupt, 250*time.Millisecond)
+		c.waitErr <- err
+		pw.CloseWithError(err)
 	}()
 	defer func() {
 		if err != nil {

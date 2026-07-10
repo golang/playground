@@ -7,9 +7,12 @@ package main
 import (
 	"bytes"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"testing/iotest"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -223,4 +226,45 @@ func TestParseDockerContainers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStartContainer_TimeoutNoHang(t *testing.T) {
+	oldExecCommand := execCommand
+	oldStartTimeout := startTimeout
+	defer func() {
+		execCommand = oldExecCommand
+		startTimeout = oldStartTimeout
+	}()
+
+	// Set a short timeout for the test to run quickly
+	startTimeout = 100 * time.Millisecond
+
+	// Mock execCommand to run the test binary itself, behaving as a sleep command.
+	// This avoids depending on external "sleep" binary which is not available on Windows.
+	execCommand = func(name string, arg ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperProcess")
+		cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
+		return cmd
+	}
+
+	// Call startContainer. It should timeout and return an error.
+	// If the hang bug is present, this call will block forever.
+	c, err := startContainer(t.Context())
+	if err == nil {
+		t.Fatalf("startContainer succeeded unexpectedly; want timeout error")
+		c.Close()
+	}
+	if !strings.Contains(err.Error(), "timeout starting container") {
+		t.Errorf("startContainer error = %v; want timeout error", err)
+	}
+}
+
+// TestHelperProcess is a helper process used to simulate long-running/stuck commands.
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	var buf [1]byte
+	os.Stdin.Read(buf[:])
+	os.Exit(0)
 }
