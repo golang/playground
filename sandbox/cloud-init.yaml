@@ -27,9 +27,9 @@ write_files:
     # Download runsc and reload Docker if not already present.
     ExecStartPre=/bin/sh -c "[ -f /var/lib/docker/runsc ] || (curl -L -o /var/lib/docker/runsc https://storage.googleapis.com/gvisor/releases/release/latest/x86_64/runsc && chmod +x /var/lib/docker/runsc && systemctl reload docker.service)"
     # Ensure latest sandbox image is pulled.
-    ExecStartPre=/usr/bin/docker pull gcr.io/PROJECT_NAME/playground-sandbox:latest
+    ExecStartPre=/usr/bin/docker pull gcr.io/PROJECT_NAME/playground-sandbox:TAG_NAME
     # Run orchestrator container. Privileged is required to spawn sibling gVisor workers.
-    ExecStart=/usr/bin/docker run --rm --name=playsandbox -p 80:80 -v /var/run/docker.sock:/var/run/docker.sock --privileged gcr.io/PROJECT_NAME/playground-sandbox:latest
+    ExecStart=/usr/bin/docker run --rm --name=playsandbox -p 80:80 -v /var/run/docker.sock:/var/run/docker.sock --privileged gcr.io/PROJECT_NAME/playground-sandbox:TAG_NAME --untrusted-container=gcr.io/PROJECT_NAME/playground-sandbox-gvisor:TAG_NAME
     ExecStop=/usr/bin/docker stop playsandbox
 
     [Install]

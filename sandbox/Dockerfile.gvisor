@@ -13,6 +13,8 @@ FROM golang/playground-sandbox AS server
 # binaries so we can use cgo.
 FROM busybox:glibc
 
+RUN adduser -D -u 1000 sandbox
+
 COPY --from=server /usr/local/bin/play-sandbox /usr/local/bin/play-sandbox
 COPY --from=server /usr/share/zoneinfo /usr/share/zoneinfo
 

@@ -23,16 +23,25 @@ RUN apt-get update
 RUN apt-get install --yes strace lsof emacs-nox net-tools tcpdump procps
 
 # Install Docker CLI:
-RUN apt-get install --yes \
-        apt-transport-https \
-        ca-certificates \
-        curl \
-        gnupg2 \
-        software-properties-common
-RUN bash -c "curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -"
-RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian trixie stable"
-RUN apt-get update
-RUN apt-get install --yes docker-ce-cli
+# Add Docker's official GPG key:
+RUN apt update
+RUN apt install --yes ca-certificates curl
+RUN install -m 0755 -d /etc/apt/keyrings
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+RUN chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+RUN tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+RUN apt update
+RUN apt install --yes docker-ce-cli
 
 COPY --from=build /go/bin/sandbox /usr/local/bin/play-sandbox
 
