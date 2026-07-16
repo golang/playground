@@ -521,7 +521,7 @@ func sandboxRun(ctx context.Context, exePath, testParam string) (execRes sandbox
 		}
 		// Ignore error. The only error can be invalid tag key or value
 		// length, which we know are safe.
-		stats.RecordWithTags(ctx, []tag.Mutator{tag.Upsert(kGoBuildSuccess, status)},
+		stats.RecordWithTags(ctx, []tag.Mutator{tag.Upsert(kGoRunSuccess, status)},
 			mGoRunLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
 	}()
 	exeBytes, err := os.ReadFile(exePath)

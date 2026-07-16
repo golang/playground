@@ -5,10 +5,15 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
+
+	"go.opencensus.io/stats/view"
 )
 
 // TestExperiments tests that experiment lines are recognized.
@@ -105,5 +110,63 @@ func TestIsTest(t *testing.T) {
 				t.Errorf(`isTest(%q, %q) = %v; want %v`, name, tc.prefix, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSandboxRunMetrics(t *testing.T) {
+	// Mock backend
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"Success": true, "Events": []}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("SANDBOX_BACKEND_URL", server.URL)
+
+	// Register views
+	if err := view.Register(views...); err != nil {
+		// Ignore error if already registered, but fail on other errors
+		if !strings.Contains(err.Error(), "already registered") {
+			t.Fatalf("view.Register: %v", err)
+		}
+	}
+
+	tmpFile, err := os.CreateTemp("", "test-exe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	if _, err := tmpFile.Write([]byte("dummy exe content")); err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close()
+
+	ctx := t.Context()
+	if _, err = sandboxRun(ctx, tmpFile.Name(), ""); err != nil {
+		t.Fatalf("sandboxRun failed: %v", err)
+	}
+
+	rows, err := view.RetrieveData("go-playground/frontend/go_run_count")
+	if err != nil {
+		t.Fatalf("RetrieveData failed: %v", err)
+	}
+
+	found := false
+	for _, row := range rows {
+		for _, tg := range row.Tags {
+			if tg.Key == kGoRunSuccess && tg.Value == "success" {
+				found = true
+				countData, ok := row.Data.(*view.CountData)
+				if !ok {
+					t.Fatalf("unexpected data type: %T", row.Data)
+				}
+				if countData.Value < 1 {
+					t.Errorf("expected count >= 1, got %v", countData.Value)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Errorf("metric go-playground/frontend/go_run_count with tag go_run_success=success was not recorded. Rows: %v", rows)
 	}
 }
