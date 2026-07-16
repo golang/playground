@@ -66,12 +66,12 @@ func newExamplesHandler(gotip bool, modtime time.Time) (*examplesHandler, error)
 		// Read examples ending in .txt, skipping those ending in .gotip.txt if
 		// gotip is not set.
 		prefix := "" // if non-empty, this is a relevant example file
-		if strings.HasSuffix(name, ".gotip.txt") {
+		if p, ok := strings.CutSuffix(name, ".gotip.txt"); ok {
 			if gotip {
-				prefix = strings.TrimSuffix(name, ".gotip.txt")
+				prefix = p
 			}
-		} else if strings.HasSuffix(name, ".txt") {
-			prefix = strings.TrimSuffix(name, ".txt")
+		} else if p, ok := strings.CutSuffix(name, ".txt"); ok {
+			prefix = p
 		}
 
 		if prefix == "" {

@@ -226,7 +226,7 @@ func main() {
 				return nil
 			}
 			have := map[string]bool{}
-			for _, f := range strings.Split(got, "\n") {
+			for f := range strings.SplitSeq(got, "\n") {
 				have[f] = true
 			}
 			for _, expect := range []string{

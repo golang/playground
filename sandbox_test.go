@@ -51,8 +51,8 @@ func TestIsTest(t *testing.T) {
 	t.Logf("%s:\n%s", strings.Join(cmd.Args, " "), out)
 
 	isTestFunction := map[string]bool{}
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(out), "\n")
+	for line := range lines {
 		// We want Test/Benchmark/Example/Fuzz functions.
 		// Reject extraneous output such as "ok ...".
 		if line == "" || !strings.Contains("TBEF", line[:1]) {

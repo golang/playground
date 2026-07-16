@@ -13,7 +13,7 @@ import (
 func TestPeriodicallyDo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	didWork := make(chan time.Time, 2)
-	done := make(chan interface{})
+	done := make(chan any)
 	go func() {
 		PeriodicallyDo(ctx, 100*time.Millisecond, func(ctx context.Context, t time.Time) {
 			select {

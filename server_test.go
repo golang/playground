@@ -26,13 +26,13 @@ type testLogger struct {
 	t *testing.T
 }
 
-func (l testLogger) Printf(format string, args ...interface{}) {
+func (l testLogger) Printf(format string, args ...any) {
 	l.t.Logf(format, args...)
 }
-func (l testLogger) Errorf(format string, args ...interface{}) {
+func (l testLogger) Errorf(format string, args ...any) {
 	l.t.Errorf(format, args...)
 }
-func (l testLogger) Fatalf(format string, args ...interface{}) {
+func (l testLogger) Fatalf(format string, args ...any) {
 	l.t.Fatalf(format, args...)
 }
 
@@ -361,7 +361,7 @@ type inMemCache struct {
 
 // Set implements the responseCache interface.
 // Set stores a *response in the cache. It panics for other types to ensure test failure.
-func (i *inMemCache) Set(key string, v interface{}) error {
+func (i *inMemCache) Set(key string, v any) error {
 	i.l.Lock()
 	defer i.l.Unlock()
 	if i.m == nil {
@@ -374,7 +374,7 @@ func (i *inMemCache) Set(key string, v interface{}) error {
 // Get implements the responseCache interface.
 // Get fetches a *response from the cache, or returns a memcache.ErrCacheMiss.
 // It panics for other types to ensure test failure.
-func (i *inMemCache) Get(key string, v interface{}) error {
+func (i *inMemCache) Get(key string, v any) error {
 	i.l.Lock()
 	defer i.l.Unlock()
 	target := v.(*response)

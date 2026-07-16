@@ -10,9 +10,9 @@ import (
 )
 
 type logger interface {
-	Printf(format string, args ...interface{})
-	Errorf(format string, args ...interface{})
-	Fatalf(format string, args ...interface{})
+	Printf(format string, args ...any)
+	Errorf(format string, args ...any)
+	Fatalf(format string, args ...any)
 }
 
 // stdLogger implements the logger interface using the log package.
@@ -30,14 +30,14 @@ func newStdLogger() *stdLogger {
 	}
 }
 
-func (l *stdLogger) Printf(format string, args ...interface{}) {
+func (l *stdLogger) Printf(format string, args ...any) {
 	l.stdout.Printf(format, args...)
 }
 
-func (l *stdLogger) Errorf(format string, args ...interface{}) {
+func (l *stdLogger) Errorf(format string, args ...any) {
 	l.stderr.Printf(format, args...)
 }
 
-func (l *stdLogger) Fatalf(format string, args ...interface{}) {
+func (l *stdLogger) Fatalf(format string, args ...any) {
 	l.stderr.Fatalf(format, args...)
 }

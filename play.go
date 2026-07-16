@@ -85,10 +85,7 @@ func (r *Recorder) Events() ([]Event, error) {
 	)
 
 	for _, e := range events {
-		delay := e.time.Sub(now)
-		if delay < 0 {
-			delay = 0
-		}
+		delay := max(e.time.Sub(now), 0)
 		out = append(out, Event{
 			Message: string(sanitize(e.msg)),
 			Kind:    e.kind,
@@ -165,10 +162,7 @@ func decode(kind string, output []byte) ([]event, error) {
 
 		// Slurp output.
 		// Truncated output is OK (probably caused by sandbox limits).
-		end := i + n
-		if end > len(output) {
-			end = len(output)
-		}
+		end := min(i+n, len(output))
 		add(t, output[i:end])
 		i += n
 	}

@@ -545,7 +545,7 @@ func runHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	tlast := t0
 	var logmu sync.Mutex
-	logf := func(format string, args ...interface{}) {
+	logf := func(format string, args ...any) {
 		if !*dev {
 			return
 		}
@@ -746,9 +746,9 @@ func sendResponse(w http.ResponseWriter, r *sandboxtypes.Response) {
 // cleanStderr removes spam stderr lines from the beginning of x
 // and returns a slice of x.
 func cleanStderr(x []byte) []byte {
-	i := bytes.Index(x, containedStderrHeader)
-	if i == -1 {
+	_, stderr, ok := bytes.Cut(x, containedStderrHeader)
+	if !ok {
 		return x
 	}
-	return x[i+len(containedStderrHeader):]
+	return stderr
 }

@@ -14,9 +14,9 @@ import (
 // responseCache is a common interface for cache implementations.
 type responseCache interface {
 	// Set sets the value for a key.
-	Set(key string, v interface{}) error
+	Set(key string, v any) error
 	// Get sets v to the value stored for a key.
-	Get(key string, v interface{}) error
+	Get(key string, v any) error
 }
 
 // gobCache stores and retrieves values using a memcache client using the gob
@@ -30,7 +30,7 @@ func newGobCache(addr string) *gobCache {
 	return &gobCache{memcache.New(addr)}
 }
 
-func (c *gobCache) Set(key string, v interface{}) error {
+func (c *gobCache) Set(key string, v any) error {
 	if c == nil {
 		return nil
 	}
@@ -41,7 +41,7 @@ func (c *gobCache) Set(key string, v interface{}) error {
 	return c.client.Set(&memcache.Item{Key: key, Value: buf.Bytes()})
 }
 
-func (c *gobCache) Get(key string, v interface{}) error {
+func (c *gobCache) Get(key string, v any) error {
 	if c == nil {
 		return memcache.ErrCacheMiss
 	}

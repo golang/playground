@@ -97,7 +97,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // writeJSONResponse JSON-encodes resp and writes to w with the given HTTP
 // status.
-func (s *server) writeJSONResponse(w http.ResponseWriter, resp interface{}, status int) {
+func (s *server) writeJSONResponse(w http.ResponseWriter, resp any, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(resp); err != nil {
