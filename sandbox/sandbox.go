@@ -424,7 +424,23 @@ func isContainerWanted(name string) bool {
 	return containerWanted[name]
 }
 
-func getContainer(ctx context.Context) (*Container, error) {
+func getContainer(ctx context.Context) (_ *Container, err error) {
+	start := time.Now()
+	defer func() {
+		status := "success"
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				status = "canceled"
+			} else if errors.Is(err, context.DeadlineExceeded) {
+				status = "deadline_exceeded"
+			} else {
+				status = "error"
+			}
+		}
+		_ = stats.RecordWithTags(context.Background(), []tag.Mutator{tag.Upsert(kContainerWaitStatus, status)},
+			mContainerWaitLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
+	}()
+
 	select {
 	case c := <-readyContainer:
 		return c, nil

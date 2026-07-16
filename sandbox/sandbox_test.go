@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"go.opencensus.io/stats/view"
 )
 
 func TestLimitedWriter(t *testing.T) {
@@ -267,4 +269,93 @@ func TestHelperProcess(t *testing.T) {
 	var buf [1]byte
 	os.Stdin.Read(buf[:])
 	os.Exit(0)
+}
+
+func TestGetContainerMetrics(t *testing.T) {
+	// Initialize readyContainer channel if not already done (it is usually done in main)
+	if readyContainer == nil {
+		readyContainer = make(chan *Container)
+	}
+
+	// Register views
+	if err := view.Register(views...); err != nil {
+		if !strings.Contains(err.Error(), "already registered") {
+			t.Fatalf("view.Register: %v", err)
+		}
+	}
+
+	// Test case 1: Canceled context
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel() // Cancel immediately
+
+	_, err := getContainer(ctx)
+	if err == nil {
+		t.Fatal("expected error from getContainer with canceled context")
+	}
+
+	rows, err := view.RetrieveData("go-playground/sandbox/container_wait_count")
+	if err != nil {
+		t.Fatalf("RetrieveData failed: %v", err)
+	}
+
+	found := false
+	for _, row := range rows {
+		for _, tg := range row.Tags {
+			if tg.Key == kContainerWaitStatus && tg.Value == "canceled" {
+				found = true
+				countData, ok := row.Data.(*view.CountData)
+				if !ok {
+					t.Fatalf("unexpected data type: %T", row.Data)
+				}
+				if countData.Value < 1 {
+					t.Errorf("expected count >= 1, got %v", countData.Value)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Errorf("metric container_wait_count with tag status=canceled was not recorded. Rows: %v", rows)
+	}
+
+	// Test case 2: Success (container available)
+	c := &Container{
+		name:      "test-container",
+		cancelCmd: func() {},
+	}
+	ctx2 := context.Background()
+	go func() {
+		readyContainer <- c
+	}()
+
+	gotC, err := getContainer(ctx2)
+	if err != nil {
+		t.Fatalf("getContainer failed: %v", err)
+	}
+	if gotC != c {
+		t.Errorf("got container %v, want %v", gotC, c)
+	}
+
+	rows, err = view.RetrieveData("go-playground/sandbox/container_wait_count")
+	if err != nil {
+		t.Fatalf("RetrieveData failed: %v", err)
+	}
+
+	found = false
+	for _, row := range rows {
+		for _, tg := range row.Tags {
+			if tg.Key == kContainerWaitStatus && tg.Value == "success" {
+				found = true
+				countData, ok := row.Data.(*view.CountData)
+				if !ok {
+					t.Fatalf("unexpected data type: %T", row.Data)
+				}
+				if countData.Value < 1 {
+					t.Errorf("expected count >= 1, got %v", countData.Value)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Errorf("metric container_wait_count with tag status=success was not recorded. Rows: %v", rows)
+	}
 }

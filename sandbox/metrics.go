@@ -13,10 +13,12 @@ import (
 
 var (
 	kContainerCreateSuccess = tag.MustNewKey("go-playground/sandbox/container_create_success")
+	kContainerWaitStatus    = tag.MustNewKey("go-playground/sandbox/container_wait_status")
 	mContainers             = stats.Int64("go-playground/sandbox/container_count", "number of sandbox containers", stats.UnitDimensionless)
 	mUnwantedContainers     = stats.Int64("go-playground/sandbox/unwanted_container_count", "number of sandbox containers that are unexpectedly running", stats.UnitDimensionless)
 	mMaxContainers          = stats.Int64("go-playground/sandbox/max_container_count", "target number of sandbox containers", stats.UnitDimensionless)
 	mContainerCreateLatency = stats.Float64("go-playground/sandbox/container_create_latency", "", stats.UnitMilliseconds)
+	mContainerWaitLatency   = stats.Float64("go-playground/sandbox/container_wait_latency", "latency of waiting for a ready container", stats.UnitMilliseconds)
 
 	containerCount = &view.View{
 		Name:        "go-playground/sandbox/container_count",
@@ -50,6 +52,20 @@ var (
 		Name:        "go-playground/sandbox/container_create_latency",
 		Description: "Latency distribution of container creation",
 		Measure:     mContainerCreateLatency,
+		Aggregation: ochttp.DefaultLatencyDistribution,
+	}
+	containerWaitCount = &view.View{
+		Name:        "go-playground/sandbox/container_wait_count",
+		Description: "Number of times we waited for a container",
+		Measure:     mContainerWaitLatency,
+		TagKeys:     []tag.Key{kContainerWaitStatus},
+		Aggregation: view.Count(),
+	}
+	containerWaitLatency = &view.View{
+		Name:        "go-playground/sandbox/container_wait_latency",
+		Description: "Latency distribution of waiting for a container",
+		Measure:     mContainerWaitLatency,
+		TagKeys:     []tag.Key{kContainerWaitStatus},
 		Aggregation: ochttp.DefaultLatencyDistribution,
 	}
 )
@@ -110,6 +126,8 @@ var views = []*view.View{
 	maxContainerCount,
 	containerCreateCount,
 	containerCreationLatency,
+	containerWaitCount,
+	containerWaitLatency,
 	ServerRequestCountView,
 	ServerRequestBytesView,
 	ServerResponseBytesView,
