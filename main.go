@@ -10,10 +10,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"cloud.google.com/go/datastore"
 	"golang.org/x/playground/internal/metrics"
+	"google.golang.org/api/idtoken"
 )
 
 var log = newStdLogger()
@@ -30,11 +31,16 @@ func main() {
 		if pid == "" {
 			s.db = &inMemStore{}
 		} else {
-			c, err := datastore.NewClient(context.Background(), pid)
+			u, err := snippetStoreURL(context.Background())
 			if err != nil {
-				return fmt.Errorf("could not create cloud datastore client: %v", err)
+				return fmt.Errorf("could not determine snippet store URL: %v", err)
 			}
-			s.db = cloudDatastore{client: c}
+			hc, err := idtoken.NewClient(context.Background(), u)
+			if err != nil {
+				return fmt.Errorf("could not create snippet store client: %v", err)
+			}
+			hc.Timeout = 10 * time.Second
+			s.db = remoteStore{baseURL: u, hc: hc}
 		}
 		if caddr := os.Getenv("MEMCACHED_ADDR"); caddr != "" {
 			s.cache = newGobCache(caddr)
@@ -107,4 +113,17 @@ func projectID() string {
 		log.Fatalf("Could not determine the project ID: %v", err)
 	}
 	return id
+}
+
+// snippetStoreURL returns the URL of the snippetstore Cloud Run service
+// deployed by deploy/deploy_snippetstore.json. SNIPPET_STORE_URL overrides it.
+func snippetStoreURL(ctx context.Context) (string, error) {
+	if v := os.Getenv("SNIPPET_STORE_URL"); v != "" {
+		return v, nil
+	}
+	projectID, err := metadata.NumericProjectIDWithContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	return "https://snippetstore-" + projectID + ".us-central1.run.app", nil
 }

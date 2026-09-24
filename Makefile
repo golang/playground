@@ -23,6 +23,9 @@ test_gvisor: docker
 # directory)
 test: test_go
 
+deploy-snippetstore:
+	gcloud builds submit --project golang-org --config deploy/deploy_snippetstore.json .
+
 define GOTIP_MESSAGE
 Note: deploy/gotip_schedule.yaml must be manually managed with gcloud.
 Example:

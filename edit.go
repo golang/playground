@@ -5,13 +5,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"runtime"
 	"strings"
-
-	"cloud.google.com/go/datastore"
 )
 
 const hostname = "play.golang.org"
@@ -55,7 +54,7 @@ func (s *server) handleEdit(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.db.GetSnippet(r.Context(), id, snip); err != nil {
-			if err != datastore.ErrNoSuchEntity {
+			if !errors.Is(err, errSnippetNotFound) {
 				s.log.Errorf("loading Snippet: %v", err)
 			}
 			http.Error(w, "Snippet not found", http.StatusNotFound)

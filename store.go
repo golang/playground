@@ -5,30 +5,76 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"sync"
-
-	"cloud.google.com/go/datastore"
 )
+
+var errSnippetNotFound = errors.New("snippet not found")
 
 type store interface {
 	PutSnippet(ctx context.Context, id string, snip *snippet) error
 	GetSnippet(ctx context.Context, id string, snip *snippet) error
 }
 
-type cloudDatastore struct {
-	client *datastore.Client
+// remoteStore is a store backed by the snippetstore server
+// (see the snippetstore directory).
+type remoteStore struct {
+	baseURL string
+	hc      *http.Client // adds any authentication the server requires
 }
 
-func (s cloudDatastore) PutSnippet(ctx context.Context, id string, snip *snippet) error {
-	key := datastore.NameKey("Snippet", id, nil)
-	_, err := s.client.Put(ctx, key, snip)
-	return err
+func (s remoteStore) PutSnippet(ctx context.Context, id string, snip *snippet) error {
+	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/snippets", bytes.NewReader(snip.Body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	got, err := s.do(req)
+	if err != nil {
+		return err
+	}
+	if string(got) != id {
+		return fmt.Errorf("snippet store returned ID %q, want %q", got, id)
+	}
+	return nil
 }
 
-func (s cloudDatastore) GetSnippet(ctx context.Context, id string, snip *snippet) error {
-	key := datastore.NameKey("Snippet", id, nil)
-	return s.client.Get(ctx, key, snip)
+func (s remoteStore) GetSnippet(ctx context.Context, id string, snip *snippet) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/snippets/"+url.PathEscape(id), nil)
+	if err != nil {
+		return err
+	}
+	body, err := s.do(req)
+	if err != nil {
+		return err
+	}
+	snip.Body = body
+	return nil
+}
+
+func (s remoteStore) do(req *http.Request) ([]byte, error) {
+	resp, err := s.hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return b, nil
+	case http.StatusNotFound:
+		return nil, errSnippetNotFound
+	}
+	return nil, fmt.Errorf("snippet store: %s %s: %s: %s", req.Method, req.URL.Path, resp.Status, bytes.TrimSpace(b))
 }
 
 // inMemStore is a store backed by a map that should only be used for testing.
@@ -54,7 +100,7 @@ func (s *inMemStore) GetSnippet(_ context.Context, id string, snip *snippet) err
 	defer s.RUnlock()
 	v, ok := s.m[id]
 	if !ok {
-		return datastore.ErrNoSuchEntity
+		return errSnippetNotFound
 	}
 	*snip = *v
 	return nil

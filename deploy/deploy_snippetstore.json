@@ -1,0 +1,38 @@
+{
+  "steps": [
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "args": [
+        "build",
+        "-f",
+        "snippetstore/Dockerfile",
+        "-t",
+        "gcr.io/$PROJECT_ID/snippetstore",
+        "."
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/docker",
+      "args": [
+        "push",
+        "gcr.io/$PROJECT_ID/snippetstore"
+      ]
+    },
+    {
+      "name": "gcr.io/cloud-builders/gcloud",
+      "args": [
+        "run",
+        "deploy",
+        "snippetstore",
+        "--project=$PROJECT_ID",
+        "--region=us-central1",
+        "--image=gcr.io/$PROJECT_ID/snippetstore:latest",
+        "--service-account=snippet-store@$PROJECT_ID.iam.gserviceaccount.com",
+        "--no-allow-unauthenticated",
+        "--ingress=all",
+        "--min-instances=1"
+      ]
+    }
+  ],
+  "timeout": "1200s"
+}

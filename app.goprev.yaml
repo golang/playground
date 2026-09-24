@@ -1,6 +1,7 @@
 service: goprevplay
 runtime: custom
 env: flex
+service_account: play-frontend@golang-org.iam.gserviceaccount.com
 
 network:
   name: projects/golang-org/global/networks/golang
