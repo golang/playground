@@ -36,7 +36,14 @@ func vetCheck(ctx context.Context, req *request) (*response, error) {
 	if err := os.WriteFile(in, []byte(req.Body), 0400); err != nil {
 		return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
 	}
-	vetOutput, err := vetCheckInDir(ctx, tmpDir, os.Getenv("GOPATH"), nil)
+
+	goPath, err := os.MkdirTemp("", "vet-gopath")
+	if err != nil {
+		return nil, fmt.Errorf("error creating temp directory: %v", err)
+	}
+	defer os.RemoveAll(goPath)
+
+	vetOutput, err := vetCheckInDir(ctx, tmpDir, filepath.Join(tmpDir, goCacheDir), goPath, nil)
 	if err != nil {
 		// This is about errors running vet, not vet returning output.
 		return nil, err
@@ -49,7 +56,7 @@ func vetCheck(ctx context.Context, req *request) (*response, error) {
 // go vet was able to run, not whether vet reported a problem. The
 // returned value is ("", nil) if vet successfully found nothing,
 // and (non-empty, nil) if vet ran and found issues.
-func vetCheckInDir(ctx context.Context, dir, goPath string, experiments []string) (output string, execErr error) {
+func vetCheckInDir(ctx context.Context, dir, cacheDir, goPath string, experiments []string) (output string, execErr error) {
 	start := time.Now()
 	defer func() {
 		status := "success"
@@ -62,16 +69,24 @@ func vetCheckInDir(ctx context.Context, dir, goPath string, experiments []string
 			mGoVetLatency.M(float64(time.Since(start))/float64(time.Millisecond)))
 	}()
 
-	cmd := exec.Command("go", "vet", "--tags=faketime", "--mod=mod")
+	// TODO(nealpatel): Refactor into safe abstraction.
+	cmd := exec.Command("/usr/local/go-faketime/bin/go", "vet", "--tags=faketime", "--mod=mod")
+	cmd.Args = append(cmd.Args, "-modcacherw")
 	cmd.Dir = dir
-	// Linux go binary is not built with CGO_ENABLED=0.
-	// Prevent vet from compiling packages in cgo mode.
-	// See #26307.
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOPATH="+goPath)
-	cmd.Env = append(cmd.Env,
+	cmd.Env = []string{
+		"GOTOOLCHAIN=local",
+		"GOENV=off",
+		"GOOS=linux",
+		"GOARCH=amd64",
+		// Linux go binary is not built with CGO_ENABLED=0.
+		// Prevent vet from compiling packages in cgo mode.
+		// See #26307.
+		"CGO_ENABLED=0",
 		"GO111MODULE=on",
-		"GOPROXY="+playgroundGoproxy(),
-	)
+		"GOPROXY=" + playgroundGoproxy(),
+		"GOPATH=" + goPath,
+		"GOCACHE=" + cacheDir,
+	}
 	if len(experiments) > 0 {
 		cmd.Env = append(cmd.Env, "GOEXPERIMENT="+strings.Join(experiments, ","))
 	}
@@ -85,7 +100,8 @@ func vetCheckInDir(ctx context.Context, dir, goPath string, experiments []string
 
 	// Rewrite compiler errors to refer to progName
 	// instead of '/tmp/sandbox1234/main.go'.
-	errs := strings.Replace(string(out), dir, "", -1)
+	errs := strings.ReplaceAll(string(out), dir, "")
+	errs = strings.ReplaceAll(errs, goPath, "")
 	errs = removeBanner(errs)
 	return errs, nil
 }

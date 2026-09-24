@@ -52,6 +52,7 @@ func (s *server) init() {
 	s.mux.HandleFunc("/", s.handleEdit)
 	s.mux.HandleFunc("/fmt", s.handleFmt)
 	s.mux.HandleFunc("/version", s.handleVersion)
+	// TODO(nealpatel): Delete if not used.
 	s.mux.HandleFunc("/vet", s.commandHandler("vet", vetCheck))
 	s.mux.HandleFunc("/compile", s.commandHandler("prog", compileAndRun))
 	s.mux.HandleFunc("/share", s.handleShare)

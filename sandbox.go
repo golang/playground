@@ -50,6 +50,8 @@ const (
 	// dir and used in compiler and vet errors.
 	progName     = "prog.go"
 	progTestName = "prog_test.go"
+
+	goCacheDir = "gocache"
 )
 
 const (
@@ -404,6 +406,22 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 		files.AddFile("go.mod", []byte("module play\n"))
 	}
 
+	var (
+		untrustedSrc     = filepath.Join(tmpDir, "src")
+		untrustedExe     = filepath.Join(tmpDir, "out")
+		untrustedGoCache = filepath.Join(tmpDir, "gocache")
+	)
+	for _, dir := range []string{untrustedSrc, untrustedExe} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, err
+		}
+	}
+	root, err := os.OpenRoot(untrustedSrc)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
 	var exp []string
 	for f, src := range files.m {
 		// Before multi-file support we required that the
@@ -419,19 +437,17 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 			exp = append(exp, experiments(string(src))...)
 		}
 
-		in := filepath.Join(tmpDir, f)
 		if strings.Contains(f, "/") {
-			if err := os.MkdirAll(filepath.Dir(in), 0755); err != nil {
+			if err := root.MkdirAll(filepath.Dir(f), 0755); err != nil {
 				return nil, err
 			}
 		}
-		if err := os.WriteFile(in, src, 0644); err != nil {
-			return nil, fmt.Errorf("error creating temp file %q: %v", in, err)
+		if err := root.WriteFile(f, src, 0644); err != nil {
+			return nil, fmt.Errorf("error creating temp file %q: %v", f, err)
 		}
 	}
 
-	br.exePath = filepath.Join(tmpDir, "a.out")
-	goCache := filepath.Join(tmpDir, "gocache")
+	br.exePath = filepath.Join(untrustedExe, "a.out")
 
 	// Copy the gocache directory containing .a files for std, so that we can
 	// avoid recompiling std during this build. Using -al (hard linking) is
@@ -439,7 +455,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	//
 	// This is necessary as .a files are no longer included in GOROOT following
 	// https://go.dev/cl/432535.
-	if err := exec.Command("cp", "-al", "/gocache", goCache).Run(); err != nil {
+	if err := exec.Command("cp", "-al", "/gocache", untrustedGoCache).Run(); err != nil {
 		return nil, fmt.Errorf("error copying GOCACHE: %v", err)
 	}
 
@@ -451,12 +467,19 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	}
 	goArgs = append(goArgs, "-o", br.exePath, "-tags=faketime")
 
+	// TODO(nealpatel): Refactor into safe abstraction.
 	cmd := exec.Command("/usr/local/go-faketime/bin/go", goArgs...)
-	cmd.Dir = tmpDir
-	cmd.Env = []string{"GOOS=linux", "GOARCH=amd64", "GOROOT=/usr/local/go-faketime"}
-	cmd.Env = append(cmd.Env, "GOCACHE="+goCache)
-	cmd.Env = append(cmd.Env, "CGO_ENABLED=0")
-	cmd.Env = append(cmd.Env, "GOEXPERIMENT="+strings.Join(exp, ","))
+	cmd.Dir = untrustedSrc
+	cmd.Env = []string{
+		"GOTOOLCHAIN=local",
+		"GOENV=off",
+		"GOOS=linux",
+		"GOARCH=amd64",
+		"GOROOT=/usr/local/go-faketime",
+		"GOCACHE=" + untrustedGoCache,
+		"CGO_ENABLED=0",
+		"GOEXPERIMENT=" + strings.Join(exp, ","),
+	}
 	// Create a GOPATH just for modules to be downloaded
 	// into GOPATH/pkg/mod.
 	cmd.Args = append(cmd.Args, "-modcacherw")
@@ -486,7 +509,8 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 		}
 		// Return compile errors to the user.
 		// Rewrite compiler errors to strip the tmpDir name.
-		br.errorMessage = br.errorMessage + strings.Replace(string(out.Bytes()), tmpDir+"/", "", -1)
+		br.errorMessage += strings.ReplaceAll(out.String(), untrustedSrc+"/", "")
+		br.errorMessage = strings.ReplaceAll(br.errorMessage, br.goPath+"/", "")
 
 		// "go build", invoked with a file name, puts this odd
 		// message before any compile errors; strip it.
@@ -503,7 +527,7 @@ func sandboxBuild(ctx context.Context, tmpDir string, in []byte, vet bool) (br *
 	}
 	if vet {
 		// TODO: do this concurrently with the execution to reduce latency.
-		br.vetOut, err = vetCheckInDir(ctx, tmpDir, br.goPath, exp)
+		br.vetOut, err = vetCheckInDir(ctx, untrustedSrc, untrustedGoCache, br.goPath, exp)
 		if err != nil {
 			return nil, fmt.Errorf("running vet: %v", err)
 		}

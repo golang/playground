@@ -364,7 +364,6 @@ func runInGvisor() {
 		}
 	}
 	os.Exit(errExitCode(err))
-	return
 }
 
 func makeWorkers() {
