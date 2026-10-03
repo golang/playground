@@ -117,6 +117,16 @@ func TestSplitFiles(t *testing.T) {
 			in:      strings.Repeat("-- x.go --\n", 50),
 			wantErr: `too many files in txtar archive (50 exceeds limit of 20)`,
 		},
+		{
+			name:    "reject file overwritten by dir",
+			in:      "-- a --\n-- a/b --\n",
+			wantErr: `conflict file/dir name "a" and "a/b"`,
+		},
+		{
+			name:    "reject dir overwritten by file",
+			in:      "-- a/b --\n-- a --\n",
+			wantErr: `conflict file/dir name "a" and "a/b"`,
+		},
 	} {
 		got, err := splitFiles([]byte(tt.in))
 		var gotErr string
